@@ -1,0 +1,6 @@
+services:
+  app:
+    build:
+      target: prod
+    volumes: !reset []
+    restart: unless-stopped

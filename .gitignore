@@ -1,0 +1,10 @@
+# System files
+.DS_STORE
+
+# Folders
+.idea
+tmp
+bin
+logs
+
+.env

@@ -1,0 +1,118 @@
+version: '3'
+
+vars:
+  PROJECT_BIN: "{{.ROOT_DIR}}/bin"
+  GOOSE: "{{.PROJECT_BIN}}/goose"
+  LINTER: "{{.PROJECT_BIN}}/golangci-lint"
+
+dotenv:
+  - .env
+
+tasks:
+  bin:init:
+    desc: Create bin folder if not already exists
+    silent: true
+    status:
+      - test -d {{.PROJECT_BIN}}
+    cmds:
+      - mkdir -p {{.PROJECT_BIN}}
+
+  goose:install:
+    desc: Install Goose binary
+    deps: [ bin:init ]
+    silent: true
+    status:
+      - test -f {{.GOOSE}}
+    cmds:
+      - |
+        echo "⏳︎ Installing Goose binary..."
+        curl -sSfL \
+        https://raw.githubusercontent.com/pressly/goose/master/install.sh \
+          | GOOSE_INSTALL={{.ROOT_DIR}} sh -s > /dev/null
+        echo "✔︎ Goose binary was installed to {{.GOOSE}}"
+
+  goose:status:
+    desc: Print migrations status information
+    deps: [ goose:install ]
+    silent: true
+    cmds:
+      - '{{.GOOSE}} status'
+
+  goose:create:
+    desc: Create new migration file
+    deps: [ goose:install ]
+    silent: true
+    requires:
+      vars:
+        - name
+    cmds:
+      - '{{.GOOSE}} create {{.name}} sql'
+
+  goose:up:
+    desc: Invoke up on all migrations
+    deps: [ goose:install ]
+    silent: true
+    cmds:
+      - '{{.GOOSE}} up'
+
+  goose:down:
+    desc: Roll back migrations by 1
+    deps: [ goose:install ]
+    silent: true
+    cmds:
+      - '{{.GOOSE}} down'
+
+  goose:reset:
+    desc: Roll back all migrations
+    deps: [ goose:install ]
+    silent: true
+    cmds:
+      - '{{.GOOSE}} reset'
+
+  lint:install:
+    desc: Install golangci-lint binary
+    deps: [ bin:init ]
+    silent: true
+    status:
+      - test -f {{.LINTER}}
+    cmds:
+      - |
+        echo "⏳︎ Installing golangci-lint binary..."
+        curl -sSfL \
+          https://golangci-lint.run/install.sh | sh -s v2.12.2 > /dev/null 2>&1
+        echo "✔︎ Linter binary was installed to {{.LINTER}}"
+
+  lint:
+    desc: Lint whole project
+    deps: [ lint:install ]
+    silent: true
+    cmds:
+      - '{{.LINTER}} run ./... --config .golangci.yml'
+
+  app:run:
+    desc: Build and run application
+    deps: [ goose:install ]
+    silent: true
+    cmds:
+      - docker compose up -d
+      - task: goose:up
+
+  app:stop:
+    desc: Stop application
+    silent: true
+    cmds:
+      - docker compose down
+
+  app:reset:
+    desc: Stop application & drop all volumes
+    silent: true
+    cmds:
+      - docker compose down -v
+
+  app:deploy:
+    desc: Build and run application on prod
+    deps: [ goose:install ]
+    silent: true
+    cmds:
+      - docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+      - task: goose:up
