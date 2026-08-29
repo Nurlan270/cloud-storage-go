@@ -1,11 +1,10 @@
-#   Dev stages
 FROM golang:1.26.3-alpine AS base
 
 WORKDIR /app
 
 RUN apk add --no-cache ca-certificates git
 
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
@@ -16,9 +15,8 @@ RUN go install github.com/air-verse/air@latest
 
 EXPOSE 8080
 
-CMD ["air", "-c", ".air.toml"]
+CMD ["air", "-c", "./docker/go/cloud_storage/.air.toml"]
 
-#   Prod stages
 FROM base AS builder
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/bin/cloud_storage ./cmd/cloud_storage

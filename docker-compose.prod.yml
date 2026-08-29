@@ -1,5 +1,11 @@
 services:
-  app:
+  cloud_storage:
+    build:
+      target: prod
+    volumes: !reset []
+    restart: unless-stopped
+
+  auth_server:
     build:
       target: prod
     volumes: !reset []

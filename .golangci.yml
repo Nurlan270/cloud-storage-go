@@ -15,6 +15,7 @@ linters:
     errcheck:
       exclude-functions:
         - (io.Closer).Close
+        - (net.Listener).Close
       verbose: false
     gocyclo:
       min-complexity: 12

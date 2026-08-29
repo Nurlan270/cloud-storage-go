@@ -1,14 +1,33 @@
 services:
-  app:
+  cloud_storage:
     container_name: cloud_storage
     build:
       context: .
-      dockerfile: docker/go/Dockerfile
+      dockerfile: docker/go/cloud_storage/Dockerfile
       target: dev
     volumes:
       - .:/app
     ports:
-      - "8080:8080"
+      - "80:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth_server:
+        condition: service_started
+    networks:
+      - app_network
+    restart: on-failure
+
+  auth_server:
+    container_name: auth_server
+    build:
+      context: .
+      dockerfile: docker/go/auth_server/Dockerfile
+      target: dev
+    volumes:
+      - .:/app
+    expose:
+      - "7070"
     depends_on:
       postgres:
         condition: service_healthy

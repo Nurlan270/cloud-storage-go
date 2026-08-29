@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/auth_server ./cmd/auth_server"
+  entrypoint = "tmp/auth_server"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "bin"]
+  exclude_file = []
+  exclude_regex = ["_test.go"]
+  delay = 1000
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = "0s"
+
+[log]
+  time = false

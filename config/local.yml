@@ -1,0 +1,10 @@
+http_server:
+  address: "0.0.0.0:8080"
+  timeout: 5s
+  idle_timeout: 60s
+database:
+  host: postgres
+  port: 5432
+  name: cloud_storage
+session:
+  expires_in: 336h # 14 days
