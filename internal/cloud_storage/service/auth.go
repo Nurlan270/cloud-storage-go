@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"net/rpc"
 	"sync"
 
@@ -16,6 +15,8 @@ import (
 
 type AuthService interface {
 	RegisterUser(req dto.RegisterUserRequest) (rpcdto.RegisterUserResponse, error)
+	LoginUser(req dto.LoginUserRequest) (rpcdto.LoginUserResponse, error)
+	LogoutUser() (rpcdto.LogoutUserResponse, error)
 }
 
 type authService struct {
@@ -52,11 +53,62 @@ func (s *authService) RegisterUser(req dto.RegisterUserRequest) (rpcdto.Register
 	//	Call register
 	err = client.Call("AuthService.Register", req, &resp)
 	if err != nil {
-		var rpcErr rpc.ServerError
-		if errors.As(err, &rpcErr) && rpcErr.Error() != errs.ErrUserAlreadyExists.Error() {
+		if !errs.RPCErrorIs(err, errs.ErrUserAlreadyExists) {
 			//	If error is not ErrUserAlreadyExists then log error
 			logger.Get().Error("rpc: failed to call AuthService.Register", zap.Error(err))
 		}
+
+		return resp, err
+	}
+
+	return resp, nil
+}
+
+func (s *authService) LoginUser(req dto.LoginUserRequest) (rpcdto.LoginUserResponse, error) {
+	var resp rpcdto.LoginUserResponse
+
+	//	Validate request
+	if err := s.validate.Struct(req); err != nil {
+		return resp, s.validate.MapError(err)
+	}
+
+	//	Get RPC Client
+	client, err := s.getClient()
+	if err != nil {
+		logger.Get().Error("rpc: failed to get client", zap.Error(err))
+
+		return resp, err
+	}
+
+	//	Call login
+	err = client.Call("AuthService.Login", req, &resp)
+	if err != nil {
+		if !errs.RPCErrorIs(err, errs.ErrInvalidCredentials) {
+			//	If error is not ErrInvalidCredentials then log error
+			logger.Get().Error("rpc: failed to call AuthService.Login", zap.Error(err))
+		}
+
+		return resp, err
+	}
+
+	return resp, nil
+}
+
+func (s *authService) LogoutUser() (rpcdto.LogoutUserResponse, error) {
+	var resp rpcdto.LogoutUserResponse
+
+	//	Get RPC Client
+	client, err := s.getClient()
+	if err != nil {
+		logger.Get().Error("rpc: failed to get client", zap.Error(err))
+
+		return resp, err
+	}
+
+	//	Call logout
+	err = client.Call("AuthService.Logout", 0, &resp)
+	if err != nil {
+		logger.Get().Error("rpc: failed to call AuthService.Logout", zap.Error(err))
 
 		return resp, err
 	}

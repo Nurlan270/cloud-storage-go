@@ -8,6 +8,7 @@ import (
 
 type UserRepository interface {
 	CreateUser(user *models.User) (*models.User, error)
+	GetUser(user *models.User) (*models.User, error)
 }
 
 type userRepository struct {
@@ -23,6 +24,17 @@ func (r userRepository) CreateUser(user *models.User) (*models.User, error) {
 
 	u := &models.User{}
 	if err := r.db.QueryRow(q, user.Username, user.Password).Scan(&u.ID, &u.Username); err != nil {
+		return nil, err
+	}
+
+	return u, nil
+}
+
+func (r userRepository) GetUser(user *models.User) (*models.User, error) {
+	const q = "SELECT id, username, password FROM users WHERE username = $1"
+
+	u := &models.User{}
+	if err := r.db.QueryRow(q, user.Username).Scan(&u.ID, &u.Username, &u.Password); err != nil {
 		return nil, err
 	}
 

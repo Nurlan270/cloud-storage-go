@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -22,6 +24,7 @@ import (
 
 type UserRepository interface {
 	CreateUser(user *models.User) (*models.User, error)
+	GetUser(user *models.User) (*models.User, error)
 }
 
 type SessionRepository interface {
@@ -30,6 +33,8 @@ type SessionRepository interface {
 
 type Service interface {
 	Register(req httpdto.RegisterUserRequest, resp *rpcdto.RegisterUserResponse) error
+	Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResponse) error
+	Logout(_ int, resp *rpcdto.LogoutUserResponse) error
 }
 
 type service struct {
@@ -96,6 +101,82 @@ func (s *service) Register(req httpdto.RegisterUserRequest, resp *rpcdto.Registe
 			Name:     cookieName,
 			Value:    dbSession.UUID,
 			Expires:  expiresAt,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		},
+	}
+
+	return nil
+}
+
+func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResponse) error {
+	user := &models.User{
+		Username: req.Username,
+	}
+
+	//	Get user
+	dbUser, err := s.userRepo.GetUser(user)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			//	User with provided username not exists
+			return errs.ErrInvalidCredentials
+		}
+
+		return fmt.Errorf("user repo: failed to get user: %w", err)
+	}
+
+	//	Compare password hashes
+	if err = bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(req.Password)); err != nil {
+		//	Provided password is invalid
+		return errs.ErrInvalidCredentials
+	}
+
+	//	Generate UUID of Session
+	uuid, err := generateUUID()
+	if err != nil {
+		return fmt.Errorf("uuid: failed to generate: %w", err)
+	}
+
+	expiresAt := time.Now().Add(s.appConf.Session.ExpiresIn).UTC()
+	sess := &models.Session{
+		UUID:      uuid,
+		UserID:    dbUser.ID,
+		ExpiresAt: expiresAt,
+	}
+
+	//	Create session
+	dbSession, err := s.sessRepo.CreateSession(sess)
+	if err != nil {
+		return fmt.Errorf("session repo: failed to create session: %w", err)
+	}
+
+	//	Create session cookie
+	cookieName := buildCookieName(s.appConf.GetAppName())
+	*resp = rpcdto.LoginUserResponse{
+		Username: dbUser.Username,
+		SessionCookie: &http.Cookie{
+			Name:     cookieName,
+			Value:    dbSession.UUID,
+			Expires:  expiresAt,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+		},
+	}
+
+	return nil
+}
+
+func (s *service) Logout(_ int, resp *rpcdto.LogoutUserResponse) error {
+	//	Create session cookie with negative values (to logout user)
+	cookieName := buildCookieName(s.appConf.GetAppName())
+	*resp = rpcdto.LogoutUserResponse{
+		SessionCookie: &http.Cookie{
+			Name:     cookieName,
+			Value:    "",
+			MaxAge:   -1,
+			Expires:  time.Unix(0, 0),
 			Path:     "/",
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,

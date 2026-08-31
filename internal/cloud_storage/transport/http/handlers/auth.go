@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/rpc"
 
 	"github.com/unrolled/render"
 
@@ -16,26 +15,29 @@ import (
 
 type AuthHandler interface {
 	Register(w http.ResponseWriter, r *http.Request)
+	Login(w http.ResponseWriter, r *http.Request)
+	Logout(w http.ResponseWriter, r *http.Request)
 }
 
-type authHandler struct {
+type handler struct {
 	authSvc service.AuthService
 	rend    *render.Render
 }
 
 func NewAuthHandler(authSvc service.AuthService, rend *render.Render) AuthHandler {
-	return &authHandler{
+	return &handler{
 		authSvc: authSvc,
 		rend:    rend,
 	}
 }
 
-func (h *authHandler) Register(w http.ResponseWriter, r *http.Request) {
+//nolint:dupl
+func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req dto.RegisterUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.rend.JSON(w, http.StatusBadRequest, dto.ErrorResponse{
-			Message: message.ErrParseData,
+			Message: message.ErrInvalidRequestBody,
 		})
 
 		return
@@ -52,8 +54,7 @@ func (h *authHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rpcErr rpc.ServerError
-	if errors.As(err, &rpcErr) && rpcErr.Error() == errs.ErrUserAlreadyExists.Error() {
+	if errs.RPCErrorIs(err, errs.ErrUserAlreadyExists) {
 		h.rend.JSON(w, http.StatusConflict, dto.ErrorResponse{
 			Message: message.ErrUserAlreadyExists,
 		})
@@ -75,4 +76,67 @@ func (h *authHandler) Register(w http.ResponseWriter, r *http.Request) {
 	h.rend.JSON(w, http.StatusCreated, dto.RegisterUserResponse{
 		Username: resp.Username,
 	})
+}
+
+//nolint:dupl
+func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
+	var req dto.LoginUserRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.rend.JSON(w, http.StatusBadRequest, dto.ErrorResponse{
+			Message: message.ErrInvalidRequestBody,
+		})
+
+		return
+	}
+
+	resp, err := h.authSvc.LoginUser(req)
+
+	var validationErr errs.ErrValidation
+	if errors.As(err, &validationErr) {
+		h.rend.JSON(w, http.StatusBadRequest, dto.ErrorResponse{
+			Message: err.Error(),
+		})
+
+		return
+	}
+
+	if errs.RPCErrorIs(err, errs.ErrInvalidCredentials) {
+		h.rend.JSON(w, http.StatusUnauthorized, dto.ErrorResponse{
+			Message: message.ErrInvalidCredentials,
+		})
+
+		return
+	}
+
+	if err != nil {
+		h.rend.JSON(w, http.StatusInternalServerError, dto.ErrorResponse{
+			Message: message.ErrInternalServer,
+		})
+
+		return
+	}
+
+	//	Set session cookie
+	http.SetCookie(w, resp.SessionCookie)
+
+	h.rend.JSON(w, http.StatusOK, dto.RegisterUserResponse{
+		Username: resp.Username,
+	})
+}
+
+func (h *handler) Logout(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.authSvc.LogoutUser()
+	if err != nil {
+		h.rend.JSON(w, http.StatusInternalServerError, dto.ErrorResponse{
+			Message: message.ErrInternalServer,
+		})
+
+		return
+	}
+
+	//	Remove session cookie
+	http.SetCookie(w, resp.SessionCookie)
+
+	h.rend.JSON(w, http.StatusNoContent, nil)
 }

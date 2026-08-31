@@ -70,9 +70,12 @@ func (a *App) registerRoutes() {
 	r.Route("/api", func(r chi.Router) {
 		//	Auth routes
 		r.Route("/auth", func(r chi.Router) {
+			//todo: add rate limiter
 			authHandler := a.di.AuthHandler()
 
 			r.Post("/sign-up", authHandler.Register)
+			r.Post("/sign-in", authHandler.Login)
+			r.Post("/sign-out", authHandler.Logout)
 		})
 	})
 }
@@ -80,6 +83,7 @@ func (a *App) registerRoutes() {
 func (a *App) Run() error {
 	srv := a.di.HTTPServer()
 
+	//todo: add graceful shutdown
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("http: server closed unexpectedly: %v", err)
 	}
