@@ -21,12 +21,14 @@ func New() *Validate {
 	v := gpv.New(gpv.WithRequiredStructEnabled())
 
 	//	Custom username validation rule
-	var re = regexp.MustCompile("^[a-zA-Z0-9._-]+$")
-
 	err := v.RegisterValidation("username", func(fl gpv.FieldLevel) bool {
 		username := fl.Field().String()
 
-		return re.MatchString(username)
+		if !regexp.MustCompile(`^[a-zA-Z0-9._]+$`).MatchString(username) {
+			return false
+		}
+
+		return regexp.MustCompile(`[a-zA-Z]`).MatchString(username)
 	})
 	if err != nil {
 		panic(fmt.Sprintf("validator: failed to register validation rule: %s", err))
