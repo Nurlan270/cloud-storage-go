@@ -21,9 +21,9 @@ func New() *Validate {
 	v := gpv.New(gpv.WithRequiredStructEnabled())
 
 	//	Custom username validation rule
-	err := v.RegisterValidation("username", func(fl gpv.FieldLevel) bool {
-		var re = regexp.MustCompile("^[a-zA-Z0-9._-]+$")
+	var re = regexp.MustCompile("^[a-zA-Z0-9._-]+$")
 
+	err := v.RegisterValidation("username", func(fl gpv.FieldLevel) bool {
 		username := fl.Field().String()
 
 		return re.MatchString(username)
@@ -48,7 +48,7 @@ func (v *Validate) MapError(err error) error {
 }
 
 func (v *Validate) getMessage(f gpv.FieldError) string {
-	fName := v.formatFieldName(f.StructField())
+	fName := formatFieldName(f.StructField())
 
 	switch f.Tag() {
 	case "required":
@@ -57,6 +57,8 @@ func (v *Validate) getMessage(f gpv.FieldError) string {
 		return fmt.Sprintf(Max, fName, f.Param())
 	case "min":
 		return fmt.Sprintf(Min, fName, f.Param())
+	case "username":
+		return fmt.Sprintf(Username, fName)
 	default:
 		return fmt.Sprintf(Default, fName, f.Tag())
 	}
@@ -64,7 +66,7 @@ func (v *Validate) getMessage(f gpv.FieldError) string {
 
 // formatFieldName formats field's name
 // from "SomeFieldName" to "Some field name".
-func (v *Validate) formatFieldName(n string) string {
+func formatFieldName(n string) string {
 	s := strcase.ToDelimited(n, ' ')
 	return strings.ToUpper(s[:1]) + strings.ToLower(s[1:])
 }

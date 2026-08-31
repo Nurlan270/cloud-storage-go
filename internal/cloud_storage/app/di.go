@@ -2,11 +2,12 @@ package app
 
 import (
 	"database/sql"
-	"github.com/unrolled/render"
 	"net/http"
 
 	"github.com/go-chi/chi"
+	"github.com/unrolled/render"
 
+	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/handlers"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
@@ -15,7 +16,7 @@ import (
 
 type diContainer struct {
 	//	Configuration
-	conf *Config
+	conf *conf.Config
 
 	//	Core dependencies
 	//todo: replace with pool
@@ -36,7 +37,7 @@ type diContainer struct {
 
 // All dependencies are nil - they'll be injected
 // lazily when they're called first time.
-func newDIContainer(conf *Config) *diContainer {
+func newDIContainer(conf *conf.Config) *diContainer {
 	return &diContainer{conf: conf}
 }
 

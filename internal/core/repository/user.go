@@ -7,7 +7,7 @@ import (
 )
 
 type UserRepository interface {
-	CreateUser(username, password string) (*models.User, error)
+	CreateUser(user *models.User) (*models.User, error)
 }
 
 type userRepository struct {
@@ -18,11 +18,11 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return userRepository{db: db}
 }
 
-func (r userRepository) CreateUser(username, password string) (*models.User, error) {
+func (r userRepository) CreateUser(user *models.User) (*models.User, error) {
 	const q = "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id, username"
 
 	u := &models.User{}
-	if err := r.db.QueryRow(q, username, password).Scan(&u.ID, &u.Username); err != nil {
+	if err := r.db.QueryRow(q, user.Username, user.Password).Scan(&u.ID, &u.Username); err != nil {
 		return nil, err
 	}
 

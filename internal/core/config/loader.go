@@ -13,7 +13,8 @@ import (
 )
 
 type Config interface {
-	GetEnv() string
+	GetAppEnv() string
+	GetAppName() string
 }
 
 func MustLoad[C Config]() *C {
@@ -31,7 +32,7 @@ func MustLoad[C Config]() *C {
 
 	//	Viper setup
 	v := viper.New()
-	v.SetConfigFile(filepath.Join("config", conf.GetEnv()+".yml"))
+	v.SetConfigFile(filepath.Join("config", conf.GetAppEnv()+".yml"))
 
 	//	Read config file
 	if err := v.ReadInConfig(); err != nil {

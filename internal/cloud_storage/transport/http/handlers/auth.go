@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/rpc"
 
 	"github.com/unrolled/render"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/dto"
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/message"
-	coredto "github.com/Nurlan270/cloud-storage-go/internal/core/dto"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 )
 
 type AuthHandler interface {
@@ -31,17 +31,17 @@ func NewAuthHandler(authSvc service.AuthService, rend *render.Render) AuthHandle
 }
 
 func (h *authHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req coredto.RegisterUserRequest
+	var req dto.RegisterUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.rend.JSON(w, http.StatusBadRequest, dto.ErrorResponse{
-			Message: message.ParseData,
+			Message: message.ErrParseData,
 		})
 
 		return
 	}
 
-	username, err := h.authSvc.RegisterUser(req)
+	resp, err := h.authSvc.RegisterUser(req)
 
 	var validationErr errs.ErrValidation
 	if errors.As(err, &validationErr) {
@@ -52,9 +52,10 @@ func (h *authHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errors.Is(err, errs.ErrUserAlreadyExists) {
+	var rpcErr rpc.ServerError
+	if errors.As(err, &rpcErr) && rpcErr.Error() == errs.ErrUserAlreadyExists.Error() {
 		h.rend.JSON(w, http.StatusConflict, dto.ErrorResponse{
-			Message: message.UserAlreadyExists,
+			Message: message.ErrUserAlreadyExists,
 		})
 
 		return
@@ -62,13 +63,16 @@ func (h *authHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		h.rend.JSON(w, http.StatusInternalServerError, dto.ErrorResponse{
-			Message: message.InternalError,
+			Message: message.ErrInternalServer,
 		})
 
 		return
 	}
 
-	h.rend.JSON(w, http.StatusOK, coredto.RegisterUserResponse{
-		Username: username,
+	//	Set session cookie
+	http.SetCookie(w, resp.SessionCookie)
+
+	h.rend.JSON(w, http.StatusCreated, dto.RegisterUserResponse{
+		Username: resp.Username,
 	})
 }
