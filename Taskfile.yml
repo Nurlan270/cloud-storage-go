@@ -91,7 +91,6 @@ tasks:
 
   app:run:
     desc: Build and run application
-    deps: [ goose:install ]
     silent: true
     cmds:
       - docker compose up -d --build
@@ -99,7 +98,6 @@ tasks:
 
   app:restart:
     desc: Stop and start app again
-    deps: [ goose:install ]
     silent: true
     cmds:
       - task: app:stop
@@ -119,7 +117,6 @@ tasks:
 
   app:deploy:
     desc: Build and run application on prod
-    deps: [ goose:install ]
     silent: true
     cmds:
       - "[ -f .env ] || cp .env.example .env"
