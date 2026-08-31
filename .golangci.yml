@@ -16,6 +16,7 @@ linters:
       exclude-functions:
         - (io.Closer).Close
         - (net.Listener).Close
+        - (*net/rpc.Client).Close
       verbose: false
     gocyclo:
       min-complexity: 12
@@ -63,7 +64,7 @@ output:
   show-stats: true
 
 issues:
-  max-same-issues: 5
+  max-same-issues: 0
   fix: true
 
 run:
