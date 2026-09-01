@@ -123,3 +123,18 @@ tasks:
       - "[ -f config/prod.yml ] || cp config/local.yml config/prod.yml"
       - docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
       - task: goose:up
+
+  test:
+    desc: Run all tests
+    silent: true
+    cmds:
+      - go test -v ./...
+
+  test:run:
+    desc: Run provided tests
+    silent: true
+    requires:
+      vars:
+        - tests
+    cmds:
+      - go test -v {{.tests}}
