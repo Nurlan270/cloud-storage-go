@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"net/rpc"
 	"sync"
 
@@ -17,6 +18,7 @@ type AuthService interface {
 	RegisterUser(req dto.RegisterUserRequest) (rpcdto.RegisterUserResponse, error)
 	LoginUser(req dto.LoginUserRequest) (rpcdto.LoginUserResponse, error)
 	LogoutUser() (rpcdto.LogoutUserResponse, error)
+	GetUserFromSID(sid string) (rpcdto.GetUserFromSIDResponse, error)
 }
 
 type authService struct {
@@ -116,6 +118,28 @@ func (s *authService) LogoutUser() (rpcdto.LogoutUserResponse, error) {
 	return resp, nil
 }
 
+func (s *authService) GetUserFromSID(sid string) (rpcdto.GetUserFromSIDResponse, error) {
+	var resp rpcdto.GetUserFromSIDResponse
+
+	//	Get RPC Client
+	client, err := s.getClient()
+	if err != nil {
+		logger.Get().Error("rpc: failed to get client", zap.Error(err))
+
+		return resp, err
+	}
+
+	//	Call GetUserFromSID
+	err = client.Call("AuthService.GetUserFromSID", sid, &resp)
+	if err != nil {
+		logger.Get().Error("rpc: failed to call AuthService.GetUserFromSID", zap.Error(err))
+
+		return resp, err
+	}
+
+	return resp, nil
+}
+
 func (s *authService) getClient() (*rpc.Client, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -147,9 +171,7 @@ func (s *authService) getClient() (*rpc.Client, error) {
 func dialAuthServer() (*rpc.Client, error) {
 	client, err := rpc.DialHTTP("tcp", "auth_server:7070")
 	if err != nil {
-		logger.Get().Error("rpc: failed to dial auth server", zap.Error(err))
-
-		return nil, err
+		return nil, fmt.Errorf("rpc: failed to dial auth server: %w", err)
 	}
 
 	return client, nil

@@ -7,3 +7,7 @@ type Session struct {
 	UserID    uint64
 	ExpiresAt time.Time
 }
+
+func (s *Session) IsExpired() bool {
+	return time.Now().After(s.ExpiresAt)
+}

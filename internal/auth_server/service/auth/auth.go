@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/iancoleman/strcase"
 	"github.com/lib/pq"
 	"github.com/lib/pq/pqerror"
 	"golang.org/x/crypto/bcrypt"
@@ -16,6 +14,7 @@ import (
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/config"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
+	corehttp "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http"
 	httpdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 	rpcdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/rpc/dto"
 
@@ -24,17 +23,20 @@ import (
 
 type UserRepository interface {
 	CreateUser(user *models.User) (*models.User, error)
-	GetUser(user *models.User) (*models.User, error)
+	GetUserFromUserID(userID uint64) (*models.User, error)
+	GetUserFromUsername(username string) (*models.User, error)
 }
 
 type SessionRepository interface {
 	CreateSession(session *models.Session) (*models.Session, error)
+	GetSessionFromSID(sid string) (*models.Session, error)
 }
 
 type Service interface {
 	Register(req httpdto.RegisterUserRequest, resp *rpcdto.RegisterUserResponse) error
 	Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResponse) error
 	Logout(_ int, resp *rpcdto.LogoutUserResponse) error
+	GetUserFromSID(sid string, resp *rpcdto.GetUserFromSIDResponse) error
 }
 
 type service struct {
@@ -94,7 +96,7 @@ func (s *service) Register(req httpdto.RegisterUserRequest, resp *rpcdto.Registe
 	}
 
 	//	Create session cookie
-	cookieName := buildCookieName(s.appConf.GetAppName())
+	cookieName := corehttp.BuildSessionCookieName(s.appConf)
 	*resp = rpcdto.RegisterUserResponse{
 		Username: dbUser.Username,
 		SessionCookie: &http.Cookie{
@@ -111,12 +113,8 @@ func (s *service) Register(req httpdto.RegisterUserRequest, resp *rpcdto.Registe
 }
 
 func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResponse) error {
-	user := &models.User{
-		Username: req.Username,
-	}
-
 	//	Get user
-	dbUser, err := s.userRepo.GetUser(user)
+	dbUser, err := s.userRepo.GetUserFromUsername(req.Username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			//	User with provided username not exists
@@ -152,7 +150,7 @@ func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResp
 	}
 
 	//	Create session cookie
-	cookieName := buildCookieName(s.appConf.GetAppName())
+	cookieName := corehttp.BuildSessionCookieName(s.appConf)
 	*resp = rpcdto.LoginUserResponse{
 		Username: dbUser.Username,
 		SessionCookie: &http.Cookie{
@@ -170,7 +168,7 @@ func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResp
 
 func (s *service) Logout(_ int, resp *rpcdto.LogoutUserResponse) error {
 	//	Create session cookie with negative values (to logout user)
-	cookieName := buildCookieName(s.appConf.GetAppName())
+	cookieName := corehttp.BuildSessionCookieName(s.appConf)
 	*resp = rpcdto.LogoutUserResponse{
 		SessionCookie: &http.Cookie{
 			Name:     cookieName,
@@ -186,6 +184,32 @@ func (s *service) Logout(_ int, resp *rpcdto.LogoutUserResponse) error {
 	return nil
 }
 
+func (s *service) GetUserFromSID(sid string, resp *rpcdto.GetUserFromSIDResponse) error {
+	session, err := s.sessRepo.GetSessionFromSID(sid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errs.ErrSessionNotFound
+		}
+
+		return fmt.Errorf("session repo: failed to get session: %w", err)
+	}
+
+	if session.IsExpired() {
+		return errs.ErrSessionExpired
+	}
+
+	user, err := s.userRepo.GetUserFromUserID(session.UserID)
+	if err != nil {
+		return fmt.Errorf("user repo: failed to get user: %w", err)
+	}
+
+	*resp = rpcdto.GetUserFromSIDResponse{
+		User: user,
+	}
+
+	return nil
+}
+
 func generateUUID() (string, error) {
 	uuid, err := guuid.NewRandom()
 	if err != nil {
@@ -193,9 +217,4 @@ func generateUUID() (string, error) {
 	}
 
 	return uuid.String(), nil
-}
-
-func buildCookieName(s string) string {
-	str := strcase.ToSnake(s)
-	return strings.Trim(str, "_") + "_session"
 }

@@ -36,6 +36,7 @@ func New() *App {
 func (a *App) initDeps() {
 	deps := []func(){
 		a.initLogger,
+		a.setupRouter,
 		a.registerRoutes,
 	}
 
@@ -48,7 +49,7 @@ func (a *App) initLogger() {
 	logger.Init(a.conf)
 }
 
-func (a *App) registerRoutes() {
+func (a *App) setupRouter() {
 	r := a.di.Router()
 
 	//	Common middlewares
@@ -65,9 +66,19 @@ func (a *App) registerRoutes() {
 			Message: message.ErrNotFound,
 		})
 	})
+}
+
+func (a *App) registerRoutes() {
+	//	Middlewares
+	authMW := mw.NewAuthMiddleware(a.conf, a.di.AuthService(), a.di.Render())
 
 	//	API Routes
-	r.Route("/api", func(r chi.Router) {
+	a.di.Router().Route("/api", func(r chi.Router) {
+		r.With(authMW.Authenticate).
+			Get("/ping", func(w http.ResponseWriter, r *http.Request) {
+				a.di.Render().JSON(w, http.StatusOK, map[string]string{"message": "pong"})
+			})
+
 		//	Auth routes
 		r.Route("/auth", func(r chi.Router) {
 			//todo: add rate limiter

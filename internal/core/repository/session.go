@@ -8,6 +8,7 @@ import (
 
 type SessionRepository interface {
 	CreateSession(session *models.Session) (*models.Session, error)
+	GetSessionFromSID(sid string) (*models.Session, error)
 }
 
 type sessionRepository struct {
@@ -36,6 +37,17 @@ func (r sessionRepository) CreateSession(session *models.Session) (*models.Sessi
 		&s.UserID,
 		&s.ExpiresAt,
 	); err != nil {
+		return nil, err
+	}
+
+	return s, nil
+}
+
+func (r sessionRepository) GetSessionFromSID(sid string) (*models.Session, error) {
+	const q = `SELECT uuid, user_id, expires_at FROM sessions WHERE uuid = $1`
+
+	s := &models.Session{}
+	if err := r.db.QueryRow(q, sid).Scan(&s.UUID, &s.UserID, &s.ExpiresAt); err != nil {
 		return nil, err
 	}
 

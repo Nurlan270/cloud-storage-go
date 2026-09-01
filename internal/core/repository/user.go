@@ -8,7 +8,8 @@ import (
 
 type UserRepository interface {
 	CreateUser(user *models.User) (*models.User, error)
-	GetUser(user *models.User) (*models.User, error)
+	GetUserFromUserID(userID uint64) (*models.User, error)
+	GetUserFromUsername(username string) (*models.User, error)
 }
 
 type userRepository struct {
@@ -30,11 +31,22 @@ func (r userRepository) CreateUser(user *models.User) (*models.User, error) {
 	return u, nil
 }
 
-func (r userRepository) GetUser(user *models.User) (*models.User, error) {
+func (r userRepository) GetUserFromUsername(username string) (*models.User, error) {
 	const q = "SELECT id, username, password FROM users WHERE username = $1"
 
 	u := &models.User{}
-	if err := r.db.QueryRow(q, user.Username).Scan(&u.ID, &u.Username, &u.Password); err != nil {
+	if err := r.db.QueryRow(q, username).Scan(&u.ID, &u.Username, &u.Password); err != nil {
+		return nil, err
+	}
+
+	return u, nil
+}
+
+func (r userRepository) GetUserFromUserID(userID uint64) (*models.User, error) {
+	const q = "SELECT id, username, password FROM users WHERE id = $1"
+
+	u := &models.User{}
+	if err := r.db.QueryRow(q, userID).Scan(&u.ID, &u.Username, &u.Password); err != nil {
 		return nil, err
 	}
 
