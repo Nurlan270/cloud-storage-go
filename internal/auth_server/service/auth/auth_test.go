@@ -3,18 +3,20 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"log"
+	"os"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/repository"
 	httpdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 	rpcdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/rpc/dto"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
-	"log"
-	"os"
-	"testing"
 )
 
 var (

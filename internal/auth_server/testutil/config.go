@@ -1,10 +1,11 @@
 package testutil
 
 import (
+	"time"
+
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/session"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
-	"time"
 )
 
 func NewTestConfig() *config.Config {

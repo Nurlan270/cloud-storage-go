@@ -5,13 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
-	"github.com/pressly/goose/v3"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"net"
 	"path/filepath"
 	"testing"
+
+	"github.com/pressly/goose/v3"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
 )
 
 func NewTestDB(ctx context.Context, conf database.Config) (*sql.DB, func() error, error) {
@@ -22,7 +24,6 @@ func NewTestDB(ctx context.Context, conf database.Config) (*sql.DB, func() error
 		postgres.WithPassword(conf.Password),
 		postgres.BasicWaitStrategies(),
 	)
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("postgres: failed to start container: %s", err)
 	}
@@ -81,5 +82,6 @@ func terminateTestDB(pgc *postgres.PostgresContainer) error {
 	if err := testcontainers.TerminateContainer(pgc); err != nil {
 		return fmt.Errorf("postgres: failed to terminate container: %s", err)
 	}
+
 	return nil
 }
