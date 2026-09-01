@@ -6,53 +6,43 @@ import (
 	"github.com/unrolled/render"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/context"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	corehttp "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
-	rpcdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/rpc/dto"
 )
 
-type AuthMiddleware interface {
-	Authenticate(next http.Handler) http.Handler
+type GuestMiddleware interface {
+	Guest(next http.Handler) http.Handler
 }
 
-type AuthService interface {
-	GetUserFromSID(sid string) (rpcdto.GetUserFromSIDResponse, error)
-}
-
-type authMiddleware struct {
+type guestMiddleware struct {
 	appConf *config.Config
 	authSvc AuthService
 	rend    *render.Render
 }
 
-func NewAuthMiddleware(appConf *config.Config, authSvc AuthService, rend *render.Render) AuthMiddleware {
-	return &authMiddleware{
+func NewGuestMiddleware(appConf *config.Config, authSvc AuthService, rend *render.Render) GuestMiddleware {
+	return &guestMiddleware{
 		appConf: appConf,
 		authSvc: authSvc,
 		rend:    rend,
 	}
 }
 
-func (m *authMiddleware) Authenticate(next http.Handler) http.Handler {
+func (m *guestMiddleware) Guest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, err := r.Cookie(corehttp.BuildSessionCookieName(m.appConf))
 		if err != nil {
 			//	No Session cookie was found
-			m.rend.JSON(w, http.StatusUnauthorized, dto.ErrorResponse{
-				Message: message.ErrUnauthorized,
-			})
+			next.ServeHTTP(w, r)
 			return
 		}
 
-		resp, err := m.authSvc.GetUserFromSID(session.Value)
+		_, err = m.authSvc.GetUserFromSID(session.Value)
 		if errs.RPCErrorIs(err, errs.ErrSessionNotFound) || errs.RPCErrorIs(err, errs.ErrSessionExpired) {
 			//	Session is not valid
-			m.rend.JSON(w, http.StatusUnauthorized, dto.ErrorResponse{
-				Message: message.ErrUnauthorized,
-			})
+			next.ServeHTTP(w, r)
 			return
 		}
 
@@ -64,9 +54,8 @@ func (m *authMiddleware) Authenticate(next http.Handler) http.Handler {
 			return
 		}
 
-		//	Put authenticated user into request context
-		ctx := context.NewUserContext(r.Context(), resp.User)
-
-		next.ServeHTTP(w, r.WithContext(ctx))
+		m.rend.JSON(w, http.StatusForbidden, dto.ErrorResponse{
+			Message: message.ErrForbidden,
+		})
 	})
 }
