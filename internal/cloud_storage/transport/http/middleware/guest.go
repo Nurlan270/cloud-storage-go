@@ -3,13 +3,11 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/unrolled/render"
-
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	corehttp "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http"
-	"github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 )
 
 type GuestMiddleware interface {
@@ -47,15 +45,10 @@ func (m *guestMiddleware) Guest(next http.Handler) http.Handler {
 		}
 
 		if err != nil {
-			m.rend.JSON(w, http.StatusInternalServerError, dto.ErrorResponse{
-				Message: message.ErrInternalServer,
-			})
-
+			m.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
 			return
 		}
 
-		m.rend.JSON(w, http.StatusForbidden, dto.ErrorResponse{
-			Message: message.ErrForbidden,
-		})
+		m.rend.Error(w, http.StatusForbidden, message.ErrForbidden)
 	})
 }

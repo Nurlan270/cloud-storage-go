@@ -5,10 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/unrolled/render"
-
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 )
@@ -36,10 +35,7 @@ func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req dto.RegisterUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.rend.JSON(w, http.StatusBadRequest, dto.ErrorResponse{
-			Message: message.ErrInvalidRequestBody,
-		})
-
+		h.rend.Error(w, http.StatusBadRequest, message.ErrInvalidRequestBody)
 		return
 	}
 
@@ -47,26 +43,17 @@ func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var validationErr errs.ErrValidation
 	if errors.As(err, &validationErr) {
-		h.rend.JSON(w, http.StatusBadRequest, dto.ErrorResponse{
-			Message: err.Error(),
-		})
-
+		h.rend.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if errs.RPCErrorIs(err, errs.ErrUserAlreadyExists) {
-		h.rend.JSON(w, http.StatusConflict, dto.ErrorResponse{
-			Message: message.ErrUserAlreadyExists,
-		})
-
+		h.rend.Error(w, http.StatusConflict, message.ErrUserAlreadyExists)
 		return
 	}
 
 	if err != nil {
-		h.rend.JSON(w, http.StatusInternalServerError, dto.ErrorResponse{
-			Message: message.ErrInternalServer,
-		})
-
+		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
 		return
 	}
 
@@ -83,10 +70,7 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req dto.LoginUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.rend.JSON(w, http.StatusBadRequest, dto.ErrorResponse{
-			Message: message.ErrInvalidRequestBody,
-		})
-
+		h.rend.Error(w, http.StatusBadRequest, message.ErrInvalidRequestBody)
 		return
 	}
 
@@ -94,26 +78,17 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	var validationErr errs.ErrValidation
 	if errors.As(err, &validationErr) {
-		h.rend.JSON(w, http.StatusBadRequest, dto.ErrorResponse{
-			Message: err.Error(),
-		})
-
+		h.rend.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if errs.RPCErrorIs(err, errs.ErrInvalidCredentials) {
-		h.rend.JSON(w, http.StatusUnauthorized, dto.ErrorResponse{
-			Message: message.ErrInvalidCredentials,
-		})
-
+		h.rend.Error(w, http.StatusUnauthorized, message.ErrInvalidCredentials)
 		return
 	}
 
 	if err != nil {
-		h.rend.JSON(w, http.StatusInternalServerError, dto.ErrorResponse{
-			Message: message.ErrInternalServer,
-		})
-
+		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
 		return
 	}
 
@@ -128,10 +103,7 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *handler) Logout(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.authSvc.LogoutUser()
 	if err != nil {
-		h.rend.JSON(w, http.StatusInternalServerError, dto.ErrorResponse{
-			Message: message.ErrInternalServer,
-		})
-
+		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
 		return
 	}
 

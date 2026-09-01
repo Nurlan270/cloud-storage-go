@@ -5,11 +5,11 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
-	"github.com/unrolled/render"
 
 	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/handlers"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/validator"
 )
@@ -80,10 +80,7 @@ func (c *diContainer) AuthHandler() handlers.AuthHandler {
 
 func (c *diContainer) Render() *render.Render {
 	if c.render == nil {
-		c.render = render.New(render.Options{
-			IndentJSON:                true,
-			DisableHTTPErrorRendering: true,
-		})
+		c.render = render.New()
 	}
 
 	return c.render

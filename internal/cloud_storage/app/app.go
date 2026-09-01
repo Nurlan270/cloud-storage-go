@@ -3,14 +3,13 @@ package app
 import (
 	"errors"
 	"fmt"
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
-	"github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 
 	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	mw "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/middleware"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
@@ -54,9 +53,7 @@ func (a *App) setupRouter() {
 
 	//	404 Custom handler
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		a.di.Render().JSON(w, http.StatusNotFound, dto.ErrorResponse{
-			Message: message.ErrNotFound,
-		})
+		a.di.Render().Error(w, http.StatusNotFound, message.ErrNotFound)
 	})
 
 	//	Common middlewares

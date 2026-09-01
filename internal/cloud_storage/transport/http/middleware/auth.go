@@ -3,14 +3,12 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/unrolled/render"
-
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/context"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	corehttp "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http"
-	"github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 	rpcdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/rpc/dto"
 )
 
@@ -41,26 +39,19 @@ func (m *authMiddleware) Authenticate(next http.Handler) http.Handler {
 		session, err := r.Cookie(corehttp.BuildSessionCookieName(m.appConf))
 		if err != nil {
 			//	No Session cookie was found
-			m.rend.JSON(w, http.StatusUnauthorized, dto.ErrorResponse{
-				Message: message.ErrUnauthorized,
-			})
+			m.rend.Error(w, http.StatusUnauthorized, message.ErrUnauthorized)
 			return
 		}
 
 		resp, err := m.authSvc.GetUserFromSID(session.Value)
 		if errs.RPCErrorIs(err, errs.ErrSessionNotFound) || errs.RPCErrorIs(err, errs.ErrSessionExpired) {
 			//	Session is not valid
-			m.rend.JSON(w, http.StatusUnauthorized, dto.ErrorResponse{
-				Message: message.ErrUnauthorized,
-			})
+			m.rend.Error(w, http.StatusUnauthorized, message.ErrUnauthorized)
 			return
 		}
 
 		if err != nil {
-			m.rend.JSON(w, http.StatusInternalServerError, dto.ErrorResponse{
-				Message: message.ErrInternalServer,
-			})
-
+			m.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
 			return
 		}
 
