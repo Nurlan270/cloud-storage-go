@@ -2,11 +2,23 @@ services:
   cloud_storage:
     build:
       target: prod
-    volumes: !reset []
+    secrets:
+      - source: app_env
+        target: /app/.env
+    volumes: !override
+      - ./logs:/app/logs
     restart: unless-stopped
 
   auth_server:
     build:
       target: prod
-    volumes: !reset []
+    secrets:
+      - source: app_env
+        target: /app/.env
+    volumes: !override
+      - ./logs:/app/logs
     restart: unless-stopped
+
+secrets:
+  app_env:
+    file: .env

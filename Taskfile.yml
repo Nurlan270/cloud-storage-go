@@ -116,7 +116,7 @@ tasks:
       - docker compose down -v
 
   app:deploy:
-    desc: Build and run application on prod
+    desc: Build and run application on production
     silent: true
     cmds:
       - "[ -f .env ] || cp .env.example .env"

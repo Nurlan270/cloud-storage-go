@@ -19,7 +19,7 @@ CMD ["air", "-c", "./docker/go/cloud_storage/.air.toml"]
 
 FROM base AS builder
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/bin/cloud_storage ./cmd/cloud_storage
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /bin/cloud_storage ./cmd/cloud_storage
 
 FROM alpine:3.22 AS prod
 
@@ -27,7 +27,9 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /app/bin/cloud_storage ./bin/cloud_storage
+COPY ./config/prod.yml ./config/prod.yml
+
+COPY --from=builder /bin/cloud_storage ./bin/cloud_storage
 
 EXPOSE 8080
 
