@@ -53,8 +53,7 @@ func (s *authService) RegisterUser(req dto.RegisterUserRequest) (rpcdto.Register
 	}
 
 	//	Call register
-	err = client.Call("AuthService.Register", req, &resp)
-	if err != nil {
+	if err = client.Call("AuthService.Register", req, &resp); err != nil {
 		if !errs.RPCErrorIs(err, errs.ErrUserAlreadyExists) {
 			//	If error is not ErrUserAlreadyExists then log error
 			logger.Get().Error("rpc: failed to call AuthService.Register", zap.Error(err))
@@ -83,8 +82,7 @@ func (s *authService) LoginUser(req dto.LoginUserRequest) (rpcdto.LoginUserRespo
 	}
 
 	//	Call login
-	err = client.Call("AuthService.Login", req, &resp)
-	if err != nil {
+	if err = client.Call("AuthService.Login", req, &resp); err != nil {
 		if !errs.RPCErrorIs(err, errs.ErrInvalidCredentials) {
 			//	If error is not ErrInvalidCredentials then log error
 			logger.Get().Error("rpc: failed to call AuthService.Login", zap.Error(err))
@@ -108,8 +106,7 @@ func (s *authService) LogoutUser() (rpcdto.LogoutUserResponse, error) {
 	}
 
 	//	Call logout
-	err = client.Call("AuthService.Logout", 0, &resp)
-	if err != nil {
+	if err = client.Call("AuthService.Logout", 0, &resp); err != nil {
 		logger.Get().Error("rpc: failed to call AuthService.Logout", zap.Error(err))
 
 		return resp, err
@@ -130,9 +127,10 @@ func (s *authService) GetUserFromSID(sid string) (rpcdto.GetUserFromSIDResponse,
 	}
 
 	//	Call GetUserFromSID
-	err = client.Call("AuthService.GetUserFromSID", sid, &resp)
-	if err != nil {
-		logger.Get().Error("rpc: failed to call AuthService.GetUserFromSID", zap.Error(err))
+	if err = client.Call("AuthService.GetUserFromSID", sid, &resp); err != nil {
+		if !errs.RPCErrorIs(err, errs.ErrSessionNotFound) && !errs.RPCErrorIs(err, errs.ErrSessionExpired) {
+			logger.Get().Error("rpc: failed to call AuthService.GetUserFromSID", zap.Error(err))
+		}
 
 		return resp, err
 	}

@@ -1,12 +1,13 @@
 package logger
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
+	"github.com/iancoleman/strcase"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -20,8 +21,8 @@ type Logger struct {
 }
 
 var (
-	l    = &Logger{}
-	once = sync.Once{}
+	globalLogger *Logger
+	once         sync.Once
 )
 
 func Init(conf config.Config) {
@@ -30,7 +31,7 @@ func Init(conf config.Config) {
 
 		encoder := getEncoder(env)
 
-		ws := getWriteSyncer(env, conf.GetAppName())
+		ws, file := getWriteSyncer(env, conf.GetAppName())
 
 		enabler := getLevelEnabler(env)
 
@@ -38,23 +39,41 @@ func Init(conf config.Config) {
 
 		zapLogger := zap.New(core, zap.AddCaller())
 
-		l.Logger = zapLogger
+		globalLogger = &Logger{
+			Logger: zapLogger,
+			file:   file,
+		}
 	})
 }
 
 // Get returns global logger's instance.
-// It can be insecure to call Get if logger
-// was not yet initialized using Init.
+// It will panic, if logger is not initialized yet.
 func Get() *Logger {
-	return l
+	if globalLogger == nil || globalLogger.Logger == nil {
+		panic("logger: call on nil logger instance, please call Init() first")
+	}
+
+	return globalLogger
 }
 
 func (l *Logger) Close() error {
-	if err := l.file.Close(); err != nil {
-		return err
+	if l == nil {
+		return nil
 	}
 
-	return nil
+	var errs []error
+
+	if l.Logger != nil {
+		errs = append(errs, l.Sync())
+		l.Logger = nil
+	}
+
+	if l.file != nil {
+		errs = append(errs, l.file.Close())
+		l.file = nil
+	}
+
+	return errors.Join(errs...)
 }
 
 func getEncoder(env string) zapcore.Encoder {
@@ -72,17 +91,21 @@ func getEncoder(env string) zapcore.Encoder {
 	return encoder
 }
 
-func getWriteSyncer(env, appName string) zapcore.WriteSyncer {
-	var ws zapcore.WriteSyncer
+func getWriteSyncer(env, appName string) (zapcore.WriteSyncer, *os.File) {
+	var (
+		ws   zapcore.WriteSyncer
+		file *os.File
+	)
 
 	switch env {
 	case "local":
 		ws = zapcore.AddSync(os.Stdout)
 	default:
-		ws = zapcore.Lock(buildFileWriteSyncer(appName))
+		file = buildLogFile(appName)
+		ws = zapcore.Lock(zapcore.AddSync(file))
 	}
 
-	return ws
+	return ws, file
 }
 
 func getLevelEnabler(env string) zapcore.LevelEnabler {
@@ -124,9 +147,9 @@ func buildEncoderConfig(env string) zapcore.EncoderConfig {
 	}
 }
 
-func buildFileWriteSyncer(appName string) zapcore.WriteSyncer {
+func buildLogFile(appName string) *os.File {
 	logFilePath := filepath.Join(
-		"logs/"+appName, fmt.Sprintf("%s.log", time.Now().Format("2006/01/02/15-04")),
+		"logs", strcase.ToSnake(appName)+".log",
 	)
 
 	if err := os.MkdirAll(filepath.Dir(logFilePath), 0755); err != nil {
@@ -138,7 +161,5 @@ func buildFileWriteSyncer(appName string) zapcore.WriteSyncer {
 		panic(fmt.Sprintf("logger: failed to open log file: %s", err))
 	}
 
-	l.file = file
-
-	return zapcore.AddSync(file)
+	return file
 }

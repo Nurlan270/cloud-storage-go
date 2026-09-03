@@ -1,11 +1,13 @@
 package app
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 
 	"github.com/go-chi/chi"
 
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/closer"
 	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/handlers"
@@ -44,6 +46,10 @@ func newDIContainer(conf *conf.Config) *diContainer {
 func (c *diContainer) DB() *sql.DB {
 	if c.db == nil {
 		c.db = database.MustConnect(c.conf.DB)
+
+		closer.Add("Database", func(_ context.Context) error {
+			return c.db.Close()
+		})
 	}
 
 	return c.db

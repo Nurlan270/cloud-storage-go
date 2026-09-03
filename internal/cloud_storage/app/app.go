@@ -1,13 +1,19 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"go.uber.org/zap"
 
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/closer"
 	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	mw "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/middleware"
@@ -86,12 +92,54 @@ func (a *App) registerRoutes() {
 }
 
 func (a *App) Run() error {
+	log := logger.Get()
 	srv := a.di.HTTPServer()
 
-	//todo: add graceful shutdown
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("http: server closed unexpectedly: %v", err)
+	serverErrCh := make(chan error, 1)
+
+	//	Start HTTP Server
+	go func() {
+		log.Info("Starting HTTP Server", zap.String("address", a.conf.HTTPServer.Address))
+
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErrCh <- fmt.Errorf("http: server closed unexpectedly: %w", err)
+			return
+		}
+
+		serverErrCh <- nil
+	}()
+
+	//	Graceful shutdown handling
+	notifyCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case <-notifyCtx.Done():
+		log.Info("Shutting down server...")
+
+		//	Double Ctrl+C pattern.
+		//	Second Ctrl+C will close server immediately.
+		stop()
+	case err := <-serverErrCh:
+		return err
 	}
+
+	//	15 Seconds to close HTTP Server & 10 Seconds to close all other services
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("http: failed to shutdown server: %w", err)
+	}
+
+	closerCtx, closerStop := context.WithTimeout(context.Background(), 10*time.Second)
+	defer closerStop()
+
+	if err := closer.CloseAll(closerCtx); err != nil {
+		return fmt.Errorf("closer: failed to close all resources: %w", err)
+	}
+
+	log.Info("closer: all resources closed successfully")
 
 	return nil
 }
