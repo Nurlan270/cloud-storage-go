@@ -9,14 +9,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/closer"
 	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
-	mw "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/middleware"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 )
@@ -67,20 +66,24 @@ func (a *App) setupRouter() {
 		middleware.Recoverer,
 		middleware.CleanPath,
 		middleware.RequestID,
-		mw.Log,
+		middleware.ClientIPFromRemoteAddr,
+		a.di.LoggerMiddleware().Log,
 	)
 }
 
 func (a *App) registerRoutes() {
 	//	Middlewares
-	authMW := mw.NewAuthMiddleware(a.conf, a.di.AuthService(), a.di.Render())
-	guestMW := mw.NewGuestMiddleware(a.conf, a.di.AuthService(), a.di.Render())
+	authMW := a.di.AuthMiddleware()
+	guestMW := a.di.GuestMiddleware()
+	limiterMW := a.di.RateLimitMiddleware()
 
 	//	API Routes
 	a.di.Router().Route("/api", func(r chi.Router) {
 		//	Auth routes
 		r.Route("/auth", func(r chi.Router) {
-			//todo: add rate limiter
+			//	Rate limit: 30 requests per hour per IP
+			r.Use(limiterMW.Limit(30, 1*time.Hour))
+
 			authHandler := a.di.AuthHandler()
 
 			r.With(guestMW.Guest).Post("/sign-up", authHandler.Register)

@@ -8,14 +8,26 @@ import (
 
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 
-	mw "github.com/go-chi/chi/middleware"
+	mw "github.com/go-chi/chi/v5/middleware"
 )
 
-func Log(next http.Handler) http.Handler {
-	l := logger.Get().WithOptions(zap.WithCaller(false))
+type LoggerMiddleware interface {
+	Log(next http.Handler) http.Handler
+}
 
+type loggerMiddleware struct {
+	log *zap.Logger
+}
+
+func NewLoggerMiddleware() LoggerMiddleware {
+	return &loggerMiddleware{
+		log: logger.Get().WithOptions(zap.WithCaller(false)),
+	}
+}
+
+func (m *loggerMiddleware) Log(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log := l.With(
+		log := m.log.With(
 			zap.String("ip", r.RemoteAddr),
 			zap.String("user_agent", r.UserAgent()),
 			zap.String("request_id", mw.GetReqID(r.Context())),

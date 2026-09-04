@@ -14,7 +14,6 @@ type diContainer struct {
 	conf *conf.Config
 
 	//	Core dependencies
-	//todo: replace with pool
 	db *sql.DB
 
 	//	Repositories

@@ -4,12 +4,13 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/closer"
 	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/handlers"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/middleware"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/validator"
@@ -20,7 +21,6 @@ type diContainer struct {
 	conf *conf.Config
 
 	//	Core dependencies
-	//todo: replace with pool
 	db        *sql.DB
 	validator *validator.Validate
 
@@ -29,11 +29,17 @@ type diContainer struct {
 	server *http.Server
 	render *render.Render
 
-	//	Services
-	authSvc service.AuthService
+	//	Middlewares
+	authMiddleware      middleware.AuthMiddleware
+	guestMiddleware     middleware.GuestMiddleware
+	loggerMiddleware    middleware.LoggerMiddleware
+	rateLimitMiddleware middleware.RateLimitMiddleware
 
 	//	Handlers
 	authHandler handlers.AuthHandler
+
+	//	Services
+	authSvc service.AuthService
 }
 
 // All dependencies are nil - they'll be injected
@@ -103,10 +109,42 @@ func (c *diContainer) AuthService() service.AuthService {
 	if c.authSvc == nil {
 		c.authSvc = service.NewAuthService(c.Validator())
 
-		closer.Add("Auth Service", func() error {
+		closer.Add("Auth RPC Client", func() error {
 			return c.authSvc.Close()
 		})
 	}
 
 	return c.authSvc
+}
+
+func (c *diContainer) GuestMiddleware() middleware.GuestMiddleware {
+	if c.guestMiddleware == nil {
+		c.guestMiddleware = middleware.NewGuestMiddleware(c.conf, c.AuthService(), c.Render())
+	}
+
+	return c.guestMiddleware
+}
+
+func (c *diContainer) AuthMiddleware() middleware.AuthMiddleware {
+	if c.authMiddleware == nil {
+		c.authMiddleware = middleware.NewAuthMiddleware(c.conf, c.AuthService(), c.Render())
+	}
+
+	return c.authMiddleware
+}
+
+func (c *diContainer) LoggerMiddleware() middleware.LoggerMiddleware {
+	if c.loggerMiddleware == nil {
+		c.loggerMiddleware = middleware.NewLoggerMiddleware()
+	}
+
+	return c.loggerMiddleware
+}
+
+func (c *diContainer) RateLimitMiddleware() middleware.RateLimitMiddleware {
+	if c.rateLimitMiddleware == nil {
+		c.rateLimitMiddleware = middleware.NewRateLimitMiddleware(c.Render())
+	}
+
+	return c.rateLimitMiddleware
 }

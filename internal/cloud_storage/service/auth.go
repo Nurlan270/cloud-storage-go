@@ -133,7 +133,7 @@ func (s *authService) Close() error {
 }
 
 // Call is a wrapper around (rpc.Client).Call method
-// which automatically gets client and reconnects on server error
+// which automatically gets client and reconnects on server error.
 func (s *authService) Call(method string, req any, resp any) error {
 	//	Get RPC Client
 	client, err := s.getClient()
@@ -214,7 +214,9 @@ func (s *authService) reconnect(failedClient *rpc.Client) error {
 	s.clientMu.Lock()
 	if s.client != failedClient {
 		s.clientMu.Unlock()
+
 		_ = newClient.Close()
+
 		return nil
 	}
 
@@ -229,11 +231,12 @@ func (s *authService) reconnect(failedClient *rpc.Client) error {
 	return failedClientErr
 }
 
-// dialConn dials the auth server and returns *rpc.Client
+// dialConn dials the auth server and returns *rpc.Client.
 func dialConn() (*rpc.Client, error) {
 	c, err := rpc.DialHTTP("tcp", "auth_server:7070")
 	if err != nil {
 		return nil, fmt.Errorf("rpc: failed to dial auth server: %w", err)
 	}
+
 	return c, nil
 }
