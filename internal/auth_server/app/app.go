@@ -30,7 +30,7 @@ func New() *App {
 
 func (a *App) initDeps() {
 	deps := []func(){
-		a.initRPC,
+		a.setupRPC,
 	}
 
 	for _, init := range deps {
@@ -38,13 +38,9 @@ func (a *App) initDeps() {
 	}
 }
 
-func (a *App) initRPC() {
+func (a *App) setupRPC() {
 	if err := rpc.RegisterName("AuthService", a.di.AuthService()); err != nil {
-		panic(fmt.Sprintf("rpc: failed to register auth service: %v", err))
-	}
-
-	if err := rpc.RegisterName("PingService", a.di.PingService()); err != nil {
-		panic(fmt.Sprintf("rpc: failed to register ping service: %v", err))
+		panic(fmt.Sprintf("rpc: failed to register AuthService: %v", err))
 	}
 
 	rpc.HandleHTTP()

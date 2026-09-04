@@ -139,7 +139,5 @@ func (a *App) Run() error {
 		return fmt.Errorf("closer: failed to close all resources: %w", err)
 	}
 
-	log.Info("closer: all resources closed successfully")
-
 	return nil
 }

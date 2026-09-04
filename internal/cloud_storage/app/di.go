@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"database/sql"
 	"net/http"
 
@@ -47,7 +46,7 @@ func (c *diContainer) DB() *sql.DB {
 	if c.db == nil {
 		c.db = database.MustConnect(c.conf.DB)
 
-		closer.Add("Database", func(_ context.Context) error {
+		closer.Add("Database", func() error {
 			return c.db.Close()
 		})
 	}
@@ -103,6 +102,10 @@ func (c *diContainer) Validator() *validator.Validate {
 func (c *diContainer) AuthService() service.AuthService {
 	if c.authSvc == nil {
 		c.authSvc = service.NewAuthService(c.Validator())
+
+		closer.Add("Auth Service", func() error {
+			return c.authSvc.Close()
+		})
 	}
 
 	return c.authSvc

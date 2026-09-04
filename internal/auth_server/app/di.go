@@ -5,7 +5,6 @@ import (
 
 	conf "github.com/Nurlan270/cloud-storage-go/internal/auth_server/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/service/auth"
-	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/service/ping"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/repository"
 )
@@ -24,7 +23,6 @@ type diContainer struct {
 
 	//	Services
 	authSvc auth.Service
-	pingSvc ping.Service
 }
 
 // All dependencies are nil - they'll be injected
@@ -63,12 +61,4 @@ func (c *diContainer) AuthService() auth.Service {
 	}
 
 	return c.authSvc
-}
-
-func (c *diContainer) PingService() ping.Service {
-	if c.pingSvc == nil {
-		c.pingSvc = ping.NewService()
-	}
-
-	return c.pingSvc
 }

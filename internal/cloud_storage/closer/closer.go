@@ -3,7 +3,9 @@ package closer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -12,7 +14,7 @@ import (
 
 type closeFn struct {
 	name string
-	fn   func(context.Context) error
+	fn   func() error
 }
 
 type closer struct {
@@ -24,11 +26,11 @@ type closer struct {
 // Global closer.
 var globalCloser = &closer{}
 
-func Add(name string, fn func(context.Context) error) {
+func Add(name string, fn func() error) {
 	globalCloser.add(name, fn)
 }
 
-func (c *closer) add(name string, fn func(context.Context) error) {
+func (c *closer) add(name string, fn func() error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -60,18 +62,36 @@ func (c *closer) closeAll(ctx context.Context) error {
 
 		//	LIFO
 		for i := len(funcs) - 1; i >= 0; i-- {
+			// Context of current resource; with timeout of 2 seconds
+			// to avoid blocking the shutdown process
+			rCtx, rCancel := context.WithTimeout(ctx, 2*time.Second)
+
 			f := funcs[i]
+			done := make(chan error, 1)
 
 			log.Info("closer: closing resource", zap.String("name", f.name))
 
-			if err := f.fn(ctx); err != nil {
-				log.Error("closer: failed to close resource",
-					zap.String("name", f.name), zap.Error(err),
+			go func() {
+				done <- f.fn()
+			}()
+
+			var err error
+
+			select {
+			case err = <-done:
+			case <-rCtx.Done():
+				err = rCtx.Err()
+			}
+
+			if err != nil {
+				errs = append(errs,
+					fmt.Errorf("closer: failed to close %q resource: %w", f.name, err),
 				)
-				errs = append(errs, err)
 			} else {
 				log.Info("closer: resource closed", zap.String("name", f.name))
 			}
+
+			rCancel()
 		}
 
 		result = errors.Join(errs...)
