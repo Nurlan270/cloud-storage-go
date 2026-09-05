@@ -37,6 +37,7 @@ type diContainer struct {
 
 	//	Handlers
 	authHandler handlers.AuthHandler
+	userHandler handlers.UserHandler
 
 	//	Services
 	authSvc service.AuthService
@@ -147,4 +148,12 @@ func (c *diContainer) RateLimitMiddleware() middleware.RateLimitMiddleware {
 	}
 
 	return c.rateLimitMiddleware
+}
+
+func (c *diContainer) UserHandler() handlers.UserHandler {
+	if c.userHandler == nil {
+		c.userHandler = handlers.NewUserHandler(c.Render())
+	}
+
+	return c.userHandler
 }

@@ -11,3 +11,7 @@ type RegisterUserResponse struct {
 type LoginUserResponse struct {
 	Username string `json:"username"`
 }
+
+type UserMeResponse struct {
+	Username string `json:"username"`
+}

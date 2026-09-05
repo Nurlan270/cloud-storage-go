@@ -6,8 +6,8 @@ import (
 	"github.com/unrolled/render"
 	"go.uber.org/zap"
 
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
-	"github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 )
 
 type Render struct {

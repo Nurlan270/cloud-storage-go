@@ -6,10 +6,11 @@ import (
 	"net/http"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
-	"github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
+	coredto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 )
 
 type AuthHandler interface {
@@ -18,21 +19,21 @@ type AuthHandler interface {
 	Logout(w http.ResponseWriter, r *http.Request)
 }
 
-type handler struct {
+type authHandler struct {
 	authSvc service.AuthService
 	rend    *render.Render
 }
 
 func NewAuthHandler(authSvc service.AuthService, rend *render.Render) AuthHandler {
-	return &handler{
+	return &authHandler{
 		authSvc: authSvc,
 		rend:    rend,
 	}
 }
 
 //nolint:dupl
-func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
-	var req dto.RegisterUserRequest
+func (h *authHandler) Register(w http.ResponseWriter, r *http.Request) {
+	var req coredto.RegisterUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.rend.Error(w, http.StatusBadRequest, message.ErrInvalidRequestBody)
@@ -66,8 +67,8 @@ func (h *handler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 //nolint:dupl
-func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
-	var req dto.LoginUserRequest
+func (h *authHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var req coredto.LoginUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.rend.Error(w, http.StatusBadRequest, message.ErrInvalidRequestBody)
@@ -100,7 +101,7 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *handler) Logout(w http.ResponseWriter, r *http.Request) {
+func (h *authHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.authSvc.LogoutUser()
 	if err != nil {
 		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)

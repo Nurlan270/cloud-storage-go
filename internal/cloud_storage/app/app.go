@@ -91,6 +91,19 @@ func (a *App) registerRoutes() {
 
 			r.With(authMW.Authenticate).Post("/sign-out", authHandler.Logout)
 		})
+
+		//	User routes
+		r.Route("/user", func(r chi.Router) {
+			r.Use(
+				//	Rate limit: 20 requests per hour per IP
+				limiterMW.Limit(20, 1*time.Hour),
+				authMW.Authenticate,
+			)
+
+			userHandler := a.di.UserHandler()
+
+			r.Get("/me", userHandler.Me)
+		})
 	})
 }
 
