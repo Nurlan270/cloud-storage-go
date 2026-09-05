@@ -7,10 +7,10 @@ import (
 )
 
 type Config struct {
-	App        App             `env:",prefix=APP_" mapstructure:"app"         validate:"required"`
-	DB         database.Config `env:",prefix=DB_"  mapstructure:"database"    validate:"required"`
-	Redis      redis.Config    `env:",prefix=REDIS_"                   mapstructure:"redis"       validate:"required"`
-	HTTPServer http.Config     `                   mapstructure:"http_server" validate:"required"`
+	App        App             `env:",prefix=APP_"   mapstructure:"app"         validate:"required"`
+	DB         database.Config `env:",prefix=DB_"    mapstructure:"database"    validate:"required"`
+	Redis      redis.Config    `env:",prefix=REDIS_" mapstructure:"redis"       validate:"required"`
+	HTTPServer http.Config     `                     mapstructure:"http_server" validate:"required"`
 }
 
 type App struct {
