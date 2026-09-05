@@ -95,7 +95,7 @@ func (h *handler) Login(w http.ResponseWriter, r *http.Request) {
 	//	Set session cookie
 	http.SetCookie(w, resp.SessionCookie)
 
-	h.rend.JSON(w, http.StatusOK, dto.RegisterUserResponse{
+	h.rend.JSON(w, http.StatusOK, dto.LoginUserResponse{
 		Username: resp.Username,
 	})
 }

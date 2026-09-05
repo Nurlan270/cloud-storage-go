@@ -4,9 +4,9 @@ import (
 	"database/sql"
 
 	conf "github.com/Nurlan270/cloud-storage-go/internal/auth_server/config"
+	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/repository"
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/service/auth"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
-	"github.com/Nurlan270/cloud-storage-go/internal/core/repository"
 )
 
 type diContainer struct {

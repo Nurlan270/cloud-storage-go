@@ -7,3 +7,7 @@ type ErrorResponse struct {
 type RegisterUserResponse struct {
 	Username string `json:"username"`
 }
+
+type LoginUserResponse struct {
+	Username string `json:"username"`
+}
