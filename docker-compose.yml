@@ -12,6 +12,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       auth_server:
         condition: service_started
     networks:
@@ -30,6 +32,8 @@ services:
       - "7070"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app_network
@@ -59,8 +63,26 @@ services:
       - app_network
     restart: unless-stopped
 
+  redis:
+    container_name: redis
+    image: redis:8.4-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app_network
+    restart: unless-stopped
+
 volumes:
   pg_data:
+  redis_data:
 
 networks:
   app_network:

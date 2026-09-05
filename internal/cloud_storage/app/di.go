@@ -144,7 +144,7 @@ func (c *diContainer) LoggerMiddleware() middleware.LoggerMiddleware {
 
 func (c *diContainer) RateLimitMiddleware() middleware.RateLimitMiddleware {
 	if c.rateLimitMiddleware == nil {
-		c.rateLimitMiddleware = middleware.NewRateLimitMiddleware(c.Render())
+		c.rateLimitMiddleware = middleware.NewRateLimitMiddleware(c.conf.Redis, c.Render())
 	}
 
 	return c.rateLimitMiddleware

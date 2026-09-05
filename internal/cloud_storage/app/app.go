@@ -81,8 +81,10 @@ func (a *App) registerRoutes() {
 	a.di.Router().Route("/api", func(r chi.Router) {
 		//	Auth routes
 		r.Route("/auth", func(r chi.Router) {
-			//	Rate limit: 30 requests per hour per IP
-			r.Use(limiterMW.Limit(30, 1*time.Hour))
+			r.Use(
+				//	Rate limit: 10 requests per 5 minutes per IP
+				limiterMW.LimitByEndpoint(10, 5*time.Minute),
+			)
 
 			authHandler := a.di.AuthHandler()
 
@@ -95,8 +97,8 @@ func (a *App) registerRoutes() {
 		//	User routes
 		r.Route("/user", func(r chi.Router) {
 			r.Use(
-				//	Rate limit: 20 requests per hour per IP
-				limiterMW.Limit(20, 1*time.Hour),
+				//	Rate limit: 10 requests per 5 minutes per IP
+				limiterMW.LimitByEndpoint(10, 5*time.Minute),
 				authMW.Authenticate,
 			)
 
