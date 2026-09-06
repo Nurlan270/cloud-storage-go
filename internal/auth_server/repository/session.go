@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/redis/go-redis/v9"
 
@@ -48,10 +47,8 @@ func (r sessionRepository) GetSessionFromSID(sid string) (*models.Session, error
 		return nil, err
 	}
 
-	fmt.Println(session)
-
 	if session.UUID == "" {
-		//	Session not found or was expired by TTl
+		//	Session not found or was expired by TTL
 		return nil, errs.ErrSessionInvalid
 	}
 
