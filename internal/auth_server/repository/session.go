@@ -1,8 +1,12 @@
 package repository
 
 import (
-	"database/sql"
+	"context"
+	"fmt"
 
+	"github.com/redis/go-redis/v9"
+
+	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 )
 
@@ -12,44 +16,44 @@ type SessionRepository interface {
 }
 
 type sessionRepository struct {
-	db *sql.DB
+	rdb *redis.Client
 }
 
-func NewSessionRepository(db *sql.DB) SessionRepository {
-	return sessionRepository{db: db}
+func NewSessionRepository(rdb *redis.Client) SessionRepository {
+	return sessionRepository{rdb: rdb}
 }
 
 func (r sessionRepository) CreateSession(session *models.Session) (*models.Session, error) {
-	const q = `
-		INSERT INTO sessions (uuid, user_id, expires_at)
-		VALUES ($1, $2, $3)
-		RETURNING uuid, user_id, expires_at
-	`
+	var key = "sessions:" + session.UUID
 
-	s := &models.Session{}
-	if err := r.db.QueryRow(
-		q,
-		session.UUID,
-		session.UserID,
-		session.ExpiresAt,
-	).Scan(
-		&s.UUID,
-		&s.UserID,
-		&s.ExpiresAt,
-	); err != nil {
+	ctx := context.Background()
+	pipe := r.rdb.Pipeline()
+
+	//	Execute both in pipe for atomicity
+	pipe.HSet(ctx, key, session)
+	pipe.Expire(ctx, key, session.ExpiresIn)
+
+	if _, err := pipe.Exec(ctx); err != nil {
 		return nil, err
 	}
 
-	return s, nil
+	return session, nil
 }
 
 func (r sessionRepository) GetSessionFromSID(sid string) (*models.Session, error) {
-	const q = `SELECT uuid, user_id, expires_at FROM sessions WHERE uuid = $1`
+	var key = "sessions:" + sid
 
-	s := &models.Session{}
-	if err := r.db.QueryRow(q, sid).Scan(&s.UUID, &s.UserID, &s.ExpiresAt); err != nil {
+	var session models.Session
+	if err := r.rdb.HGetAll(context.Background(), key).Scan(&session); err != nil {
 		return nil, err
 	}
 
-	return s, nil
+	fmt.Println(session)
+
+	if session.UUID == "" {
+		//	Session not found or was expired by TTl
+		return nil, errs.ErrSessionInvalid
+	}
+
+	return &session, nil
 }

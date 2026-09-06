@@ -3,11 +3,7 @@ package models
 import "time"
 
 type Session struct {
-	UUID      string
-	UserID    uint64
-	ExpiresAt time.Time
-}
-
-func (s *Session) IsExpired() bool {
-	return time.Now().After(s.ExpiresAt)
+	UUID      string `redis:"uuid"`
+	UserID    uint64 `redis:"user_id"`
+	ExpiresIn time.Duration
 }

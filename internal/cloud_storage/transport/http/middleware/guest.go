@@ -38,8 +38,8 @@ func (m *guestMiddleware) Guest(next http.Handler) http.Handler {
 		}
 
 		_, err = m.authSvc.GetUserFromSID(session.Value)
-		if errs.RPCErrorIs(err, errs.ErrSessionNotFound) || errs.RPCErrorIs(err, errs.ErrSessionExpired) {
-			//	Session is not valid
+		if errs.RPCErrorIs(err, errs.ErrSessionInvalid) || errs.RPCErrorIs(err, errs.ErrUserNotFound) {
+			//	Session is invalid or user with this SID wasn't found
 			next.ServeHTTP(w, r)
 			return
 		}

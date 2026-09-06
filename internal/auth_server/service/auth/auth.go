@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -66,7 +65,7 @@ func (s *service) Register(req httpdto.RegisterUserRequest, resp *rpcdto.Registe
 	}
 
 	//	Create user
-	dbUser, err := s.userRepo.CreateUser(user)
+	repoUser, err := s.userRepo.CreateUser(user)
 	if err != nil {
 		if uniqErr := pq.As(err, pqerror.UniqueViolation); uniqErr != nil {
 			//	User with provided username already exists
@@ -82,26 +81,27 @@ func (s *service) Register(req httpdto.RegisterUserRequest, resp *rpcdto.Registe
 		return fmt.Errorf("uuid: failed to generate: %w", err)
 	}
 
-	expiresAt := time.Now().Add(s.appConf.Session.ExpiresIn).UTC()
+	expiresIn := s.appConf.Session.ExpiresIn
 	sess := &models.Session{
 		UUID:      uuid,
-		UserID:    dbUser.ID,
-		ExpiresAt: expiresAt,
+		UserID:    repoUser.ID,
+		ExpiresIn: expiresIn,
 	}
 
 	//	Create session
-	dbSession, err := s.sessRepo.CreateSession(sess)
+	repoSession, err := s.sessRepo.CreateSession(sess)
 	if err != nil {
 		return fmt.Errorf("session repo: failed to create session: %w", err)
 	}
 
 	//	Create session cookie
+	expiresAt := time.Now().Add(expiresIn).UTC()
 	cookieName := corehttp.BuildSessionCookieName(s.appConf)
 	*resp = rpcdto.RegisterUserResponse{
-		Username: dbUser.Username,
+		Username: repoUser.Username,
 		SessionCookie: &http.Cookie{
 			Name:     cookieName,
-			Value:    dbSession.UUID,
+			Value:    repoSession.UUID,
 			Expires:  expiresAt,
 			Path:     "/",
 			HttpOnly: true,
@@ -114,10 +114,10 @@ func (s *service) Register(req httpdto.RegisterUserRequest, resp *rpcdto.Registe
 
 func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResponse) error {
 	//	Get user
-	dbUser, err := s.userRepo.GetUserFromUsername(req.Username)
+	repoUser, err := s.userRepo.GetUserFromUsername(req.Username)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			//	User with provided username not exists
+		if errors.Is(err, errs.ErrUserNotFound) {
+			//	User with provided username wasn't found
 			return errs.ErrInvalidCredentials
 		}
 
@@ -125,7 +125,7 @@ func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResp
 	}
 
 	//	Compare password hashes
-	if err = bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(req.Password)); err != nil {
+	if err = bcrypt.CompareHashAndPassword([]byte(repoUser.Password), []byte(req.Password)); err != nil {
 		//	Provided password is invalid
 		return errs.ErrInvalidCredentials
 	}
@@ -136,15 +136,16 @@ func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResp
 		return fmt.Errorf("uuid: failed to generate: %w", err)
 	}
 
-	expiresAt := time.Now().Add(s.appConf.Session.ExpiresIn).UTC()
+	expiresIn := s.appConf.Session.ExpiresIn
+	expiresAt := time.Now().Add(expiresIn).UTC()
 	sess := &models.Session{
 		UUID:      uuid,
-		UserID:    dbUser.ID,
-		ExpiresAt: expiresAt,
+		UserID:    repoUser.ID,
+		ExpiresIn: expiresIn,
 	}
 
 	//	Create session
-	dbSession, err := s.sessRepo.CreateSession(sess)
+	repoSession, err := s.sessRepo.CreateSession(sess)
 	if err != nil {
 		return fmt.Errorf("session repo: failed to create session: %w", err)
 	}
@@ -152,10 +153,10 @@ func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResp
 	//	Create session cookie
 	cookieName := corehttp.BuildSessionCookieName(s.appConf)
 	*resp = rpcdto.LoginUserResponse{
-		Username: dbUser.Username,
+		Username: repoUser.Username,
 		SessionCookie: &http.Cookie{
 			Name:     cookieName,
-			Value:    dbSession.UUID,
+			Value:    repoSession.UUID,
 			Expires:  expiresAt,
 			Path:     "/",
 			HttpOnly: true,
@@ -187,19 +188,19 @@ func (s *service) Logout(_ int, resp *rpcdto.LogoutUserResponse) error {
 func (s *service) GetUserFromSID(sid string, resp *rpcdto.GetUserFromSIDResponse) error {
 	session, err := s.sessRepo.GetSessionFromSID(sid)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return errs.ErrSessionNotFound
+		if errors.Is(err, errs.ErrSessionInvalid) {
+			return errs.ErrSessionInvalid
 		}
 
 		return fmt.Errorf("session repo: failed to get session: %w", err)
 	}
 
-	if session.IsExpired() {
-		return errs.ErrSessionExpired
-	}
-
 	user, err := s.userRepo.GetUserFromUserID(session.UserID)
 	if err != nil {
+		if errors.Is(err, errs.ErrUserNotFound) {
+			return errs.ErrUserNotFound
+		}
+
 		return fmt.Errorf("user repo: failed to get user: %w", err)
 	}
 

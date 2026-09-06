@@ -6,6 +6,7 @@ import (
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/session"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/redis"
 )
 
 func NewTestConfig() *config.Config {
@@ -20,6 +21,8 @@ func NewTestConfig() *config.Config {
 		Password: "postgres",
 	}
 
+	rdb := redis.Config{}
+
 	sess := session.Config{
 		ExpiresIn: 5 * time.Minute,
 	}
@@ -27,6 +30,7 @@ func NewTestConfig() *config.Config {
 	return &config.Config{
 		App:     app,
 		DB:      db,
+		Redis:   rdb,
 		Session: sess,
 	}
 }

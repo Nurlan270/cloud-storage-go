@@ -3,10 +3,13 @@ package app
 import (
 	"database/sql"
 
+	"github.com/redis/go-redis/v9"
+
 	conf "github.com/Nurlan270/cloud-storage-go/internal/auth_server/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/repository"
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/service/auth"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
+	rdb "github.com/Nurlan270/cloud-storage-go/internal/core/redis"
 )
 
 type diContainer struct {
@@ -14,7 +17,8 @@ type diContainer struct {
 	conf *conf.Config
 
 	//	Core dependencies
-	db *sql.DB
+	db  *sql.DB
+	rdb *redis.Client
 
 	//	Repositories
 	userRepo    repository.UserRepository
@@ -38,6 +42,14 @@ func (c *diContainer) DB() *sql.DB {
 	return c.db
 }
 
+func (c *diContainer) Redis() *redis.Client {
+	if c.rdb == nil {
+		c.rdb = rdb.MustConnect(c.conf.Redis, 1)
+	}
+
+	return c.rdb
+}
+
 func (c *diContainer) UserRepo() repository.UserRepository {
 	if c.userRepo == nil {
 		c.userRepo = repository.NewUserRepository(c.DB())
@@ -48,7 +60,7 @@ func (c *diContainer) UserRepo() repository.UserRepository {
 
 func (c *diContainer) SessionRepo() repository.SessionRepository {
 	if c.sessionRepo == nil {
-		c.sessionRepo = repository.NewSessionRepository(c.DB())
+		c.sessionRepo = repository.NewSessionRepository(c.Redis())
 	}
 
 	return c.sessionRepo

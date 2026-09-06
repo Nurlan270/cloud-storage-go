@@ -2,7 +2,9 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 
+	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 )
 
@@ -36,6 +38,10 @@ func (r userRepository) GetUserFromUsername(username string) (*models.User, erro
 
 	u := &models.User{}
 	if err := r.db.QueryRow(q, username).Scan(&u.ID, &u.Username, &u.Password); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrUserNotFound
+		}
+
 		return nil, err
 	}
 
@@ -47,6 +53,10 @@ func (r userRepository) GetUserFromUserID(userID uint64) (*models.User, error) {
 
 	u := &models.User{}
 	if err := r.db.QueryRow(q, userID).Scan(&u.ID, &u.Username, &u.Password); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrUserNotFound
+		}
+
 		return nil, err
 	}
 

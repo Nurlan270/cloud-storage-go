@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/repository"
@@ -21,6 +22,7 @@ import (
 
 var (
 	db       *sql.DB
+	rdb      *redis.Client
 	userRepo repository.UserRepository
 	sessRepo repository.SessionRepository
 	authSvc  Service
@@ -30,28 +32,43 @@ func TestMain(m *testing.M) {
 	conf := testutil.NewTestConfig()
 
 	var (
-		err     error
-		cleanup func() error
+		err        error
+		cleanupDB  func() error
+		cleanupRDB func() error
 	)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	//	Setup test database
-	db, cleanup, err = testutil.NewTestDB(context.Background(), conf.DB)
+	db, cleanupDB, err = testutil.NewTestDB(ctx, conf.DB)
 	if err != nil {
 		log.Fatalf("failed to create test database: %s", err)
 	}
 
+	//	Setup test redis
+	rdb, cleanupRDB, err = testutil.NewTestRedis(ctx, conf.Redis)
+	if err != nil {
+		log.Fatalf("failed to create test redis: %s", err)
+	}
+
 	//	Arrange
 	userRepo = repository.NewUserRepository(db)
-	sessRepo = repository.NewSessionRepository(db)
+	sessRepo = repository.NewSessionRepository(rdb)
 
 	authSvc = NewService(userRepo, sessRepo, conf)
 
 	//	Run tests
 	code := m.Run()
 
+	//	Clean test redis
+	if err = cleanupRDB(); err != nil {
+		log.Printf("failed to cleanup test redis: %s", err)
+	}
+
 	//	Clean test database
-	if err = cleanup(); err != nil {
-		log.Printf("failed to cleanup: %s", err)
+	if err = cleanupDB(); err != nil {
+		log.Printf("failed to cleanup test database: %s", err)
 	}
 
 	os.Exit(code)
@@ -59,6 +76,7 @@ func TestMain(m *testing.M) {
 
 func TestAuthService(t *testing.T) {
 	t.Run("it creates new user on register", func(t *testing.T) {
+		testutil.CleanupRedis(t, rdb)
 		testutil.CleanupDatabase(t, db)
 
 		req := httpdto.RegisterUserRequest{
@@ -86,6 +104,7 @@ func TestAuthService(t *testing.T) {
 	})
 
 	t.Run("it returns error if user already exists on register", func(t *testing.T) {
+		testutil.CleanupRedis(t, rdb)
 		testutil.CleanupDatabase(t, db)
 
 		//	User 1

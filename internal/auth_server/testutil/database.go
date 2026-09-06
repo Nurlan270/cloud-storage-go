@@ -71,7 +71,7 @@ func CleanupDatabase(t *testing.T, testDB *sql.DB) {
 	t.Helper()
 
 	_, err := testDB.Exec(`
-		TRUNCATE TABLE sessions, users RESTART IDENTITY CASCADE
+		TRUNCATE TABLE users RESTART IDENTITY CASCADE
 	`)
 	if err != nil {
 		t.Fatalf("db: failed to truncate tables: %s", err)

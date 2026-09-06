@@ -98,9 +98,9 @@ func (s *authService) LogoutUser() (rpcdto.LogoutUserResponse, error) {
 func (s *authService) GetUserFromSID(sid string) (rpcdto.GetUserFromSIDResponse, error) {
 	var resp rpcdto.GetUserFromSIDResponse
 
-	//	Call GetUserFromSID
+	//	Call RPC
 	if err := s.Call("GetUserFromSID", sid, &resp); err != nil {
-		if !errs.RPCErrorIs(err, errs.ErrSessionNotFound) && !errs.RPCErrorIs(err, errs.ErrSessionExpired) {
+		if !errs.RPCErrorIs(err, errs.ErrSessionInvalid) && !errs.RPCErrorIs(err, errs.ErrUserNotFound) {
 			logger.Get().Error("rpc: failed to call AuthService.GetUserFromSID", zap.Error(err))
 		}
 
