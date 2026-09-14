@@ -12,6 +12,7 @@ import (
 type SessionRepository interface {
 	CreateSession(session *models.Session) (*models.Session, error)
 	GetSessionFromSID(sid string) (*models.Session, error)
+	DeleteSession(sid string) error
 }
 
 type sessionRepository struct {
@@ -53,4 +54,14 @@ func (r sessionRepository) GetSessionFromSID(sid string) (*models.Session, error
 	}
 
 	return &session, nil
+}
+
+func (r sessionRepository) DeleteSession(sid string) error {
+	var key = "sessions:" + sid
+
+	if err := r.rdb.Del(context.Background(), key).Err(); err != nil {
+		return err
+	}
+
+	return nil
 }

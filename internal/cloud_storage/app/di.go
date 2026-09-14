@@ -1,18 +1,21 @@
 package app
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/minio/minio-go/v7"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/closer"
 	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/repository"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/handlers"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/middleware"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
+	coreminio "github.com/Nurlan270/cloud-storage-go/internal/core/minio"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/validator"
 )
 
@@ -21,7 +24,8 @@ type diContainer struct {
 	conf *conf.Config
 
 	//	Core dependencies
-	db        *sql.DB
+	dbPool    *pgxpool.Pool
+	minio     *minio.Client
 	validator *validator.Validate
 
 	//	HTTP
@@ -36,11 +40,16 @@ type diContainer struct {
 	rateLimitMiddleware middleware.RateLimitMiddleware
 
 	//	Handlers
-	authHandler handlers.AuthHandler
-	userHandler handlers.UserHandler
+	authHandler     handlers.AuthHandler
+	userHandler     handlers.UserHandler
+	resourceHandler handlers.ResourceHandler
 
 	//	Services
-	authSvc service.AuthService
+	authSvc     service.AuthService
+	resourceSvc service.ResourceService
+
+	//	Repositories
+	resourceRepo repository.ResourceRepository
 }
 
 // All dependencies are nil - they'll be injected
@@ -49,16 +58,17 @@ func newDIContainer(conf *conf.Config) *diContainer {
 	return &diContainer{conf: conf}
 }
 
-func (c *diContainer) DB() *sql.DB {
-	if c.db == nil {
-		c.db = database.MustConnect(c.conf.DB)
+func (c *diContainer) DB() *pgxpool.Pool {
+	if c.dbPool == nil {
+		c.dbPool = database.MustConnect(c.conf.DB)
 
 		closer.Add("Database", func() error {
-			return c.db.Close()
+			c.dbPool.Close()
+			return nil
 		})
 	}
 
-	return c.db
+	return c.dbPool
 }
 
 func (c *diContainer) Router() chi.Router {
@@ -74,8 +84,9 @@ func (c *diContainer) HTTPServer() *http.Server {
 		c.server = &http.Server{
 			Addr:         c.conf.HTTPServer.Address,
 			Handler:      c.Router(),
-			ReadTimeout:  c.conf.HTTPServer.Timeout,
-			WriteTimeout: c.conf.HTTPServer.Timeout,
+			ReadTimeout:  c.conf.HTTPServer.ReadTimeout,
+			WriteTimeout: c.conf.HTTPServer.WriteTimeout,
+			IdleTimeout:  c.conf.HTTPServer.IdleTimeout,
 		}
 	}
 
@@ -84,7 +95,7 @@ func (c *diContainer) HTTPServer() *http.Server {
 
 func (c *diContainer) AuthHandler() handlers.AuthHandler {
 	if c.authHandler == nil {
-		c.authHandler = handlers.NewAuthHandler(c.AuthService(), c.Render())
+		c.authHandler = handlers.NewAuthHandler(c.conf, c.AuthService(), c.Render())
 	}
 
 	return c.authHandler
@@ -156,4 +167,36 @@ func (c *diContainer) UserHandler() handlers.UserHandler {
 	}
 
 	return c.userHandler
+}
+
+func (c *diContainer) ResourceHandler() handlers.ResourceHandler {
+	if c.resourceHandler == nil {
+		c.resourceHandler = handlers.NewResourceHandler(c.ResourceService(), c.Render(), c.Validator())
+	}
+
+	return c.resourceHandler
+}
+
+func (c *diContainer) ResourceService() service.ResourceService {
+	if c.resourceSvc == nil {
+		c.resourceSvc = service.NewResourceService(c.Minio(), c.DB(), c.ResourceRepo())
+	}
+
+	return c.resourceSvc
+}
+
+func (c *diContainer) ResourceRepo() repository.ResourceRepository {
+	if c.resourceRepo == nil {
+		c.resourceRepo = repository.NewResourceRepository(c.DB())
+	}
+
+	return c.resourceRepo
+}
+
+func (c *diContainer) Minio() *minio.Client {
+	if c.minio == nil {
+		c.minio = coreminio.MustConnect(c.conf.Minio)
+	}
+
+	return c.minio
 }

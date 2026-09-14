@@ -38,7 +38,7 @@ tasks:
     cmds:
       - '{{.GOOSE}} status'
 
-  goose:create:
+  goose:new:
     desc: Create new migration file
     deps: [ goose:install ]
     silent: true
@@ -68,6 +68,14 @@ tasks:
     silent: true
     cmds:
       - '{{.GOOSE}} reset'
+
+  goose:fresh:
+    desc: Roll back all migrations & invoke up on all migrations
+    deps: [ goose:install ]
+    silent: true
+    cmds:
+      - task: goose:reset
+      - task: goose:up
 
   lint:install:
     desc: Install golangci-lint binary
@@ -101,6 +109,13 @@ tasks:
     silent: true
     cmds:
       - task: app:stop
+      - task: app:run
+
+  app:reboot:
+    desc: Stop and start app again & remove all dedicated volumes
+    silent: true
+    cmds:
+      - task: app:reset
       - task: app:run
 
   app:stop:

@@ -2,13 +2,13 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	db       *sql.DB
+	pool     *pgxpool.Pool
 	rdb      *redis.Client
 	userRepo repository.UserRepository
 	sessRepo repository.SessionRepository
@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 	defer cancel()
 
 	//	Setup test database
-	db, cleanupDB, err = testutil.NewTestDB(ctx, conf.DB)
+	pool, cleanupDB, err = testutil.NewTestDB(ctx, conf.DB)
 	if err != nil {
 		log.Fatalf("failed to create test database: %s", err)
 	}
@@ -53,7 +53,7 @@ func TestMain(m *testing.M) {
 	}
 
 	//	Arrange
-	userRepo = repository.NewUserRepository(db)
+	userRepo = repository.NewUserRepository(pool)
 	sessRepo = repository.NewSessionRepository(rdb)
 
 	authSvc = NewService(userRepo, sessRepo, conf)
@@ -77,7 +77,7 @@ func TestMain(m *testing.M) {
 func TestAuthService(t *testing.T) {
 	t.Run("it creates new user on register", func(t *testing.T) {
 		testutil.CleanupRedis(t, rdb)
-		testutil.CleanupDatabase(t, db)
+		testutil.CleanupDatabase(t, pool)
 
 		req := httpdto.RegisterUserRequest{
 			Username: "john_doe",
@@ -105,7 +105,7 @@ func TestAuthService(t *testing.T) {
 
 	t.Run("it returns error if user already exists on register", func(t *testing.T) {
 		testutil.CleanupRedis(t, rdb)
-		testutil.CleanupDatabase(t, db)
+		testutil.CleanupDatabase(t, pool)
 
 		//	User 1
 		user1 := httpdto.RegisterUserRequest{

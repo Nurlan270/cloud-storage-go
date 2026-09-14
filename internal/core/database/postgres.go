@@ -1,44 +1,35 @@
 package database
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
-	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func MustConnect(conf Config) *sql.DB {
-	db, err := connect(conf)
+func MustConnect(conf Config) *pgxpool.Pool {
+	pool, err := connect(conf)
 	if err != nil {
 		panic(err)
 	}
 
-	return db
+	return pool
 }
 
-func Connect(conf Config) (*sql.DB, error) {
+func Connect(conf Config) (*pgxpool.Pool, error) {
 	return connect(conf)
 }
 
-func connect(conf Config) (*sql.DB, error) {
-	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+func connect(conf Config) (*pgxpool.Pool, error) {
+	connString := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable pool_max_conns=25",
 		conf.Host, conf.Port, conf.Username, conf.Password, conf.Name,
 	)
 
-	db, err := sql.Open("postgres", connString)
+	pool, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
-		return nil, fmt.Errorf("db: failed to open: %s", err)
+		return nil, fmt.Errorf("postgres: failed to create pool: %s", err)
 	}
 
-	if err = db.Ping(); err != nil {
-		return nil, fmt.Errorf("db: failed to ping: %s", err)
-	}
-
-	//	Setup DB
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
-
-	return db, nil
+	return pool, nil
 }

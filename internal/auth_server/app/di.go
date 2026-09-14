@@ -1,8 +1,7 @@
 package app
 
 import (
-	"database/sql"
-
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
 	conf "github.com/Nurlan270/cloud-storage-go/internal/auth_server/config"
@@ -17,8 +16,8 @@ type diContainer struct {
 	conf *conf.Config
 
 	//	Core dependencies
-	db  *sql.DB
-	rdb *redis.Client
+	dbPool *pgxpool.Pool
+	rdb    *redis.Client
 
 	//	Repositories
 	userRepo    repository.UserRepository
@@ -34,12 +33,12 @@ func newDIContainer(conf *conf.Config) *diContainer {
 	return &diContainer{conf: conf}
 }
 
-func (c *diContainer) DB() *sql.DB {
-	if c.db == nil {
-		c.db = database.MustConnect(c.conf.DB)
+func (c *diContainer) DB() *pgxpool.Pool {
+	if c.dbPool == nil {
+		c.dbPool = database.MustConnect(c.conf.DB)
 	}
 
-	return c.db
+	return c.dbPool
 }
 
 func (c *diContainer) Redis() *redis.Client {

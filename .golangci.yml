@@ -17,7 +17,9 @@ linters:
         - (io.Closer).Close
         - (net.Listener).Close
         - (*net/rpc.Client).Close
-      verbose: false
+        - (github.com/jackc/pgx/v5.Tx).Rollback
+        - (github.com/jackc/pgx/v5.BatchResults).Close
+      verbose: true
     gocyclo:
       min-complexity: 12
     godot:

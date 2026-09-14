@@ -2,21 +2,18 @@ package testutil
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"net"
-	"path/filepath"
 	"testing"
 
-	"github.com/pressly/goose/v3"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
 )
 
-func NewTestDB(ctx context.Context, conf database.Config) (*sql.DB, func() error, error) {
+func NewTestDB(ctx context.Context, conf database.Config) (*pgxpool.Pool, func() error, error) {
 	pgc, err := postgres.Run(ctx,
 		"postgres:18-alpine",
 		postgres.WithDatabase(conf.Name),
@@ -48,29 +45,27 @@ func NewTestDB(ctx context.Context, conf database.Config) (*sql.DB, func() error
 	}
 
 	cleanup := func() error {
-		return errors.Join(
-			db.Close(),
-			terminateTestDB(pgc),
-		)
+		db.Close()
+		return terminateTestDB(pgc)
 	}
 
 	//	Setup Goose
-	if err = goose.SetDialect("postgres"); err != nil {
-		return nil, cleanup, fmt.Errorf("goose: failed to set dialect: %s", err)
-	}
-
-	//	Run migrations
-	if err = goose.Up(db, filepath.Join("..", "..", "..", "core", "database", "migrations")); err != nil {
-		return nil, cleanup, fmt.Errorf("goose: failed to run migrations: %s", err)
-	}
+	//if err = goose.SetDialect("postgres"); err != nil {
+	//	return nil, cleanup, fmt.Errorf("goose: failed to set dialect: %s", err)
+	//}
+	//
+	////	Run migrations
+	//if err = goose.Up(db, filepath.Join("..", "..", "..", "core", "database", "migrations")); err != nil {
+	//	return nil, cleanup, fmt.Errorf("goose: failed to run migrations: %s", err)
+	//}
 
 	return db, cleanup, nil
 }
 
-func CleanupDatabase(t *testing.T, testDB *sql.DB) {
+func CleanupDatabase(t *testing.T, testDB *pgxpool.Pool) {
 	t.Helper()
 
-	_, err := testDB.Exec(`
+	_, err := testDB.Exec(context.Background(), `
 		TRUNCATE TABLE users RESTART IDENTITY CASCADE
 	`)
 	if err != nil {

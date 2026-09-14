@@ -6,7 +6,7 @@ import (
 	"github.com/unrolled/render"
 	"go.uber.org/zap"
 
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 )
 
@@ -29,7 +29,7 @@ func New() *Render {
 }
 
 func (r *Render) Error(w http.ResponseWriter, statusCode int, msg string) {
-	err := r.Render.JSON(w, statusCode, dto.ErrorResponse{
+	err := r.Render.JSON(w, statusCode, response.Error{
 		Message: msg,
 	})
 	if err != nil {

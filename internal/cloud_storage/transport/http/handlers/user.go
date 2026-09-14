@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/context"
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 )
 
@@ -23,7 +23,7 @@ func NewUserHandler(rend *render.Render) UserHandler {
 func (h *userHandler) Me(w http.ResponseWriter, r *http.Request) {
 	u := context.UserFromRequest(r)
 
-	h.rend.JSON(w, http.StatusOK, dto.UserMeResponse{
+	h.rend.JSON(w, http.StatusOK, response.UserMe{
 		Username: u.Username,
 	})
 }

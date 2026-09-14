@@ -18,7 +18,7 @@ import (
 type AuthService interface {
 	RegisterUser(req dto.RegisterUserRequest) (rpcdto.RegisterUserResponse, error)
 	LoginUser(req dto.LoginUserRequest) (rpcdto.LoginUserResponse, error)
-	LogoutUser() (rpcdto.LogoutUserResponse, error)
+	LogoutUser(req dto.LogoutUserRequest) (rpcdto.LogoutUserResponse, error)
 	GetUserFromSID(sid string) (rpcdto.GetUserFromSIDResponse, error)
 
 	Close() error
@@ -45,7 +45,7 @@ func (s *authService) RegisterUser(req dto.RegisterUserRequest) (rpcdto.Register
 
 	//	Validate request
 	if err := s.validate.Struct(req); err != nil {
-		return resp, s.validate.MapError(err)
+		return resp, err
 	}
 
 	//	Call RPC
@@ -66,7 +66,7 @@ func (s *authService) LoginUser(req dto.LoginUserRequest) (rpcdto.LoginUserRespo
 
 	//	Validate request
 	if err := s.validate.Struct(req); err != nil {
-		return resp, s.validate.MapError(err)
+		return resp, err
 	}
 
 	//	Call RPC
@@ -82,11 +82,11 @@ func (s *authService) LoginUser(req dto.LoginUserRequest) (rpcdto.LoginUserRespo
 	return resp, nil
 }
 
-func (s *authService) LogoutUser() (rpcdto.LogoutUserResponse, error) {
+func (s *authService) LogoutUser(req dto.LogoutUserRequest) (rpcdto.LogoutUserResponse, error) {
 	var resp rpcdto.LogoutUserResponse
 
 	//	Call RPC
-	if err := s.Call("Logout", 0, &resp); err != nil {
+	if err := s.Call("Logout", req, &resp); err != nil {
 		logger.Get().Error("rpc: failed to call AuthService.Logout", zap.Error(err))
 
 		return resp, err

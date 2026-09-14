@@ -6,12 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lib/pq"
-	"github.com/lib/pq/pqerror"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/config"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/hasher"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 	corehttp "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http"
 	httpdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
@@ -29,12 +26,13 @@ type UserRepository interface {
 type SessionRepository interface {
 	CreateSession(session *models.Session) (*models.Session, error)
 	GetSessionFromSID(sid string) (*models.Session, error)
+	DeleteSession(sid string) error
 }
 
 type Service interface {
 	Register(req httpdto.RegisterUserRequest, resp *rpcdto.RegisterUserResponse) error
 	Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResponse) error
-	Logout(_ int, resp *rpcdto.LogoutUserResponse) error
+	Logout(req httpdto.LogoutUserRequest, resp *rpcdto.LogoutUserResponse) error
 	GetUserFromSID(sid string, resp *rpcdto.GetUserFromSIDResponse) error
 }
 
@@ -54,21 +52,20 @@ func NewService(userRepo UserRepository, sessRepo SessionRepository, appConf *co
 
 func (s *service) Register(req httpdto.RegisterUserRequest, resp *rpcdto.RegisterUserResponse) error {
 	//	Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := hasher.CreateHash(req.Password)
 	if err != nil {
-		return fmt.Errorf("bcrypt: failed to hash password: %w", err)
+		return err
 	}
 
 	user := &models.User{
 		Username: req.Username,
-		Password: string(hashedPassword),
+		Password: hashedPassword,
 	}
 
 	//	Create user
 	repoUser, err := s.userRepo.CreateUser(user)
 	if err != nil {
-		if uniqErr := pq.As(err, pqerror.UniqueViolation); uniqErr != nil {
-			//	User with provided username already exists
+		if errors.Is(err, errs.ErrUserAlreadyExists) {
 			return errs.ErrUserAlreadyExists
 		}
 
@@ -124,8 +121,11 @@ func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResp
 		return fmt.Errorf("user repo: failed to get user: %w", err)
 	}
 
-	//	Compare password hashes
-	if err = bcrypt.CompareHashAndPassword([]byte(repoUser.Password), []byte(req.Password)); err != nil {
+	//	Compare password against hash
+	match, err := hasher.VerifyPassword(req.Password, repoUser.Password)
+	if err != nil {
+		return err
+	} else if !match {
 		//	Provided password is invalid
 		return errs.ErrInvalidCredentials
 	}
@@ -167,7 +167,12 @@ func (s *service) Login(req httpdto.LoginUserRequest, resp *rpcdto.LoginUserResp
 	return nil
 }
 
-func (s *service) Logout(_ int, resp *rpcdto.LogoutUserResponse) error {
+func (s *service) Logout(req httpdto.LogoutUserRequest, resp *rpcdto.LogoutUserResponse) error {
+	//	Delete session from storage
+	if err := s.sessRepo.DeleteSession(req.SID); err != nil {
+		return err
+	}
+
 	//	Create session cookie with negative values (to logout user)
 	cookieName := corehttp.BuildSessionCookieName(s.appConf)
 	*resp = rpcdto.LogoutUserResponse{

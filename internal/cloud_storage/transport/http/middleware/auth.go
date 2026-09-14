@@ -37,8 +37,8 @@ func NewAuthMiddleware(appConf *config.Config, authSvc AuthService, rend *render
 func (m *authMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, err := r.Cookie(corehttp.BuildSessionCookieName(m.appConf))
-		if err != nil {
-			//	No Session cookie was found
+		if err != nil || session.Valid() != nil {
+			//	No Session cookie was found, or it was malformed
 			m.rend.Error(w, http.StatusUnauthorized, message.ErrUnauthorized)
 			return
 		}

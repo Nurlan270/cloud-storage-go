@@ -66,7 +66,7 @@ func (a *App) setupRouter() {
 		middleware.Recoverer,
 		middleware.CleanPath,
 		middleware.RequestID,
-		middleware.ClientIPFromRemoteAddr,
+		middleware.ClientIPFromHeader("X-Real-IP"),
 		a.di.LoggerMiddleware().Log,
 	)
 }
@@ -81,30 +81,50 @@ func (a *App) registerRoutes() {
 	a.di.Router().Route("/api", func(r chi.Router) {
 		//	Auth routes
 		r.Route("/auth", func(r chi.Router) {
-			r.Use(
-				//	Rate limit: 10 requests per 5 minutes per IP
-				limiterMW.LimitByEndpoint(10, 5*time.Minute),
-			)
-
 			authHandler := a.di.AuthHandler()
 
-			r.With(guestMW.Guest).Post("/sign-up", authHandler.Register)
-			r.With(guestMW.Guest).Post("/sign-in", authHandler.Login)
+			r.With(
+				guestMW.Guest,
+				//	Rate limit: 10 requests per 5 minutes per IP
+				limiterMW.LimitByEndpoint(10, 5*time.Minute),
+			).Route("/", func(r chi.Router) {
+				r.Post("/sign-up", authHandler.Register)
+				r.Post("/sign-in", authHandler.Login)
+			})
 
-			r.With(authMW.Authenticate).Post("/sign-out", authHandler.Logout)
+			r.With(
+				authMW.Authenticate,
+				//	Rate limit: 10 requests per 5 minutes per IP
+				limiterMW.LimitByEndpoint(10, 5*time.Minute),
+			).Post("/sign-out", authHandler.Logout)
 		})
 
 		//	User routes
 		r.Route("/user", func(r chi.Router) {
-			r.Use(
-				//	Rate limit: 10 requests per 5 minutes per IP
-				limiterMW.LimitByEndpoint(10, 5*time.Minute),
-				authMW.Authenticate,
-			)
-
 			userHandler := a.di.UserHandler()
 
+			r.Use(
+				authMW.Authenticate,
+				//	Rate limit: 10 requests per 5 minutes per IP
+				limiterMW.LimitByEndpoint(10, 5*time.Minute),
+			)
+
 			r.Get("/me", userHandler.Me)
+		})
+
+		//	Resource routes
+		r.Route("/resource", func(r chi.Router) {
+			resourceHandler := a.di.ResourceHandler()
+
+			r.Use(
+				authMW.Authenticate,
+				//	Rate limit: 10 requests per 3 minutes per IP
+				limiterMW.LimitByEndpoint(10, 2*time.Minute),
+			)
+
+			r.Post("/", resourceHandler.UploadResource)
+			r.Get("/", resourceHandler.GetResourceInfo)
+			r.Get("/search", resourceHandler.SearchResource)
 		})
 	})
 }

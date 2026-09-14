@@ -1,13 +1,17 @@
 http_server:
   address: "0.0.0.0:8080"
-  timeout: 5s
+  read_timeout: 20m
+  write_timeout: 20m
   idle_timeout: 60s
+
 database:
   host: postgres
   port: 5432
   name: cloud_storage
+
 redis:
   host: redis
   port: 6379
+
 session:
   expires_in: 336h # 14 days

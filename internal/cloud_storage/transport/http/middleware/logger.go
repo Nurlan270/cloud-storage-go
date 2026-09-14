@@ -38,11 +38,11 @@ func (m *loggerMiddleware) Log(next http.Handler) http.Handler {
 
 		ww := mw.NewWrapResponseWriter(w, r.ProtoMajor)
 
-		t1 := time.Now()
+		start := time.Now()
 		defer func() {
 			log.Info("Incoming request",
 				zap.Int("status", ww.Status()),
-				zap.Duration("duration_ms", time.Since(t1).Round(time.Millisecond)),
+				zap.Duration("duration", time.Since(start).Round(time.Millisecond)),
 			)
 		}()
 

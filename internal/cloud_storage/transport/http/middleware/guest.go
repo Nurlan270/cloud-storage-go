@@ -31,8 +31,8 @@ func NewGuestMiddleware(appConf *config.Config, authSvc AuthService, rend *rende
 func (m *guestMiddleware) Guest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, err := r.Cookie(corehttp.BuildSessionCookieName(m.appConf))
-		if err != nil {
-			//	No Session cookie was found
+		if err != nil || session.Valid() != nil {
+			//	No Session cookie was found, or it was malformed
 			next.ServeHTTP(w, r)
 			return
 		}
