@@ -134,8 +134,8 @@ tasks:
     desc: Build and run application on production
     silent: true
     cmds:
-      - "[ -f .env ] || cp .env.example .env"
-      - "[ -f config/prod.yml ] || cp config/local.yml config/prod.yml"
+      - "[ -f .env ] || mv .env.example .env"
+      - "[ -f config/prod.yml ] || mv config/local.yml config/prod.yml"
       - docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
       - task: goose:up
 
