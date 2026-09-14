@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,6 +22,13 @@ type ResourceRepository interface {
 		resourceType models.ResourceType,
 	) (*models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]*models.Resource, error)
+	DeleteTx(
+		ctx context.Context,
+		tx pgx.Tx,
+		userID uint64,
+		path, name string,
+		resourceType models.ResourceType,
+	) error
 }
 
 type resourceRepository struct {
@@ -79,7 +87,7 @@ func (r *resourceRepository) Get(
 	const q = `
 		SELECT user_id, path, name, size, type
 		FROM resources
-		WHERE user_id = $1 AND type = $2 AND (path = $3 AND name = $4)
+		WHERE user_id = $1 AND type = $2 AND path = $3 AND name = $4
 	`
 
 	res := &models.Resource{}
@@ -135,4 +143,59 @@ func (r *resourceRepository) Search(
 	}
 
 	return list, nil
+}
+
+func (r *resourceRepository) DeleteTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	userID uint64,
+	path, name string,
+	resourceType models.ResourceType,
+) error {
+	const (
+		qSingleDelete = `
+			DELETE FROM resources
+			WHERE user_id = $1 AND type = $2 AND path = $3 AND name = $4
+		`
+
+		qDeleteAll = `
+			DELETE FROM resources
+			WHERE user_id = $1 AND path LIKE $2
+		`
+	)
+
+	var deleted int64
+
+	if resourceType == models.TypeDir {
+		//	Remove provided folder
+		tag, err := tx.Exec(ctx, qSingleDelete, userID, resourceType, path, name)
+		if err != nil {
+			return err
+		}
+
+		deleted += tag.RowsAffected()
+
+		//	Remove all resources that's within provided folder
+		dirPath := strings.TrimLeft(path+name, "/") + "/"
+
+		tag, err = tx.Exec(ctx, qDeleteAll, userID, dirPath+"%")
+		if err != nil {
+			return err
+		}
+
+		deleted += tag.RowsAffected()
+	} else {
+		tag, err := tx.Exec(ctx, qSingleDelete, userID, resourceType, path, name)
+		if err != nil {
+			return err
+		}
+
+		deleted += tag.RowsAffected()
+	}
+
+	if deleted <= 0 {
+		return errs.ErrResourceNotFound
+	}
+
+	return nil
 }

@@ -24,6 +24,7 @@ type ResourceService interface {
 	Upload(ctx context.Context, req request.UploadResource) (response.ResourceInfoList, error)
 	GetInfo(ctx context.Context, req request.GetResourceInfo) (response.ResourceInfo, error)
 	Search(ctx context.Context, req request.SearchResource) (response.ResourceInfoList, error)
+	Delete(ctx context.Context, req request.DeleteResource) error
 }
 
 type ResourceRepository interface {
@@ -35,6 +36,13 @@ type ResourceRepository interface {
 		resourceType models.ResourceType,
 	) (*models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]*models.Resource, error)
+	DeleteTx(
+		ctx context.Context,
+		tx pgx.Tx,
+		userID uint64,
+		path, name string,
+		resourceType models.ResourceType,
+	) error
 }
 
 type resourceService struct {
@@ -104,7 +112,7 @@ func (s *resourceService) Upload(
 	//	Begin TX
 	tx, txErr := s.pool.Begin(ctx)
 	if txErr != nil {
-		s.log.Error("failed to start transaction", zap.Error(txErr))
+		s.log.Error("tx: failed to start", zap.Error(txErr))
 		return nil, txErr
 	}
 	defer tx.Rollback(ctx)
@@ -258,4 +266,35 @@ func (s *resourceService) Search(
 	}
 
 	return info, nil
+}
+
+func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource) error {
+	user := httpctx.UserFromContext(ctx)
+
+	path, name := splitPath(req.Path)
+	resourceType := getResourceType(req.Path)
+
+	//	Start TX
+	tx, txErr := s.pool.Begin(ctx)
+	if txErr != nil {
+		s.log.Error("tx: failed to start", zap.Error(txErr))
+		return txErr
+	}
+	defer tx.Rollback(ctx)
+
+	if err := s.resourceRepo.DeleteTx(ctx, tx, user.ID, path, name, resourceType); err != nil {
+		if !errors.Is(err, errs.ErrResourceNotFound) {
+			s.log.Error("resource repo: failed to get resource", zap.Error(err))
+		}
+
+		return err
+	}
+
+	//	Commit TX
+	if err := tx.Commit(ctx); err != nil {
+		s.log.Error("tx: failed to commit", zap.Error(err))
+		return err
+	}
+
+	return nil
 }

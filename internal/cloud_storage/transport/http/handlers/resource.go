@@ -13,8 +13,9 @@ import (
 )
 
 type ResourceHandler interface {
-	UploadResource(w http.ResponseWriter, r *http.Request)
 	GetResourceInfo(w http.ResponseWriter, r *http.Request)
+	UploadResource(w http.ResponseWriter, r *http.Request)
+	DeleteResource(w http.ResponseWriter, r *http.Request)
 	SearchResource(w http.ResponseWriter, r *http.Request)
 }
 
@@ -118,4 +119,32 @@ func (h *resourceHandler) SearchResource(w http.ResponseWriter, r *http.Request)
 	}
 
 	h.rend.JSON(w, http.StatusOK, list)
+}
+
+func (h *resourceHandler) DeleteResource(w http.ResponseWriter, r *http.Request) {
+	//	Get data
+	req := request.DeleteResource{
+		Path: r.URL.Query().Get("path"),
+	}
+
+	//	Validate
+	if err := h.validate.Struct(req); err != nil {
+		h.rend.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	//	Delete
+	err := h.resourceSvc.Delete(r.Context(), req)
+
+	if errors.Is(err, errs.ErrResourceNotFound) {
+		h.rend.Error(w, http.StatusNotFound, message.ErrResourceNotFound)
+		return
+	}
+
+	if err != nil {
+		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
+		return
+	}
+
+	h.rend.JSON(w, http.StatusNoContent, nil)
 }

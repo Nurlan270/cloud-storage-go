@@ -11,6 +11,10 @@ type GetResourceInfo struct {
 	Path string `validate:"required,path"`
 }
 
+type DeleteResource struct {
+	Path string `validate:"required,path"`
+}
+
 type SearchResource struct {
 	Query string `validate:"required"`
 }
