@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil/closer"
 	"net"
 	"strconv"
 	"testing"
@@ -16,24 +17,24 @@ import (
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
-func NewTestRedis(ctx context.Context, conf coreredis.Config) (*redis.Client, func() error, error) {
+func NewTestRedis(ctx context.Context, conf coreredis.Config) (*redis.Client, error) {
 	rc, err := tcredis.Run(ctx,
 		"redis:8.4-alpine",
 		tcredis.WithSnapshotting(10, 1),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("redis: failed to start container: %s", err)
+		return nil, fmt.Errorf("redis: failed to start container: %s", err)
 	}
 
 	//	Get Host/Port pair from container
 	redisHostPort, err := rc.Endpoint(ctx, "")
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to retrieve redis host/port pair: %s", err)
+		return nil, fmt.Errorf("failed to retrieve redis host/port pair: %s", err)
 	}
 
 	redisHost, redisPort, err := net.SplitHostPort(redisHostPort)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse redis host and port: %s", err)
+		return nil, fmt.Errorf("failed to parse redis host and port: %s", err)
 	}
 
 	conf.Host = redisHost
@@ -42,17 +43,16 @@ func NewTestRedis(ctx context.Context, conf coreredis.Config) (*redis.Client, fu
 
 	rdb, err := coreredis.Connect(conf, 0)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	cleanup := func() error {
+	closer.Add("Test Redis", func() error {
 		return errors.Join(
 			rdb.Close(),
 			terminateTestRedis(rc),
 		)
-	}
+	})
 
-	return rdb, cleanup, nil
+	return rdb, nil
 }
 
 func CleanupRedis(t *testing.T, rdb *redis.Client) {
