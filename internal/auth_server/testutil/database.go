@@ -5,17 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil/closer"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"net"
 	"path/filepath"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/pressly/goose/v3"
-
+	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil/closer"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
 )
 

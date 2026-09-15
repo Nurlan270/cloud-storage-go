@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"database/sql"
-	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil/closer"
 	"log"
 	"os"
 	"testing"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/repository"
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil"
+	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil/closer"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 	httpdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
