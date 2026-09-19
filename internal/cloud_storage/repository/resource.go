@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
+	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -14,21 +14,11 @@ import (
 )
 
 type ResourceRepository interface {
-	BatchInsertTx(ctx context.Context, tx pgx.Tx, resources []models.Resource) error
-	Get(
-		ctx context.Context,
-		userID uint64,
-		path, name string,
-		resourceType models.ResourceType,
-	) (*models.Resource, error)
+	BatchInsert(ctx context.Context, resources []models.Resource) error
+	Get(ctx context.Context, resource *models.Resource) (*models.Resource, error)
+	Update(ctx context.Context, old *models.Resource, new *models.Resource) (*models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]*models.Resource, error)
-	DeleteTx(
-		ctx context.Context,
-		tx pgx.Tx,
-		userID uint64,
-		path, name string,
-		resourceType models.ResourceType,
-	) error
+	Delete(ctx context.Context, resource *models.Resource) error
 }
 
 type resourceRepository struct {
@@ -39,9 +29,8 @@ func NewResourceRepository(pool *pgxpool.Pool) ResourceRepository {
 	return &resourceRepository{pool: pool}
 }
 
-func (r *resourceRepository) BatchInsertTx(
+func (r *resourceRepository) BatchInsert(
 	ctx context.Context,
-	tx pgx.Tx,
 	resources []models.Resource,
 ) error {
 	const q = `
@@ -54,6 +43,8 @@ func (r *resourceRepository) BatchInsertTx(
 	for _, res := range resources {
 		batch.Queue(q, res.UserID, res.Path, res.Name, res.Size, res.Type)
 	}
+
+	tx := corectx.TxFromContext(ctx)
 
 	br := tx.SendBatch(ctx, batch)
 	defer br.Close()
@@ -78,12 +69,7 @@ func (r *resourceRepository) BatchInsertTx(
 	return nil
 }
 
-func (r *resourceRepository) Get(
-	ctx context.Context,
-	userID uint64,
-	path, name string,
-	resourceType models.ResourceType,
-) (*models.Resource, error) {
+func (r *resourceRepository) Get(ctx context.Context, resource *models.Resource) (*models.Resource, error) {
 	const q = `
 		SELECT user_id, path, name, size, type
 		FROM resources
@@ -93,18 +79,11 @@ func (r *resourceRepository) Get(
 	res := &models.Resource{}
 	if err := r.pool.QueryRow(
 		ctx, q,
-		userID,
-		resourceType,
-		path,
-		name,
+		resource.UserID, resource.Type, resource.Path, resource.Name,
 	).Scan(
-		&res.UserID,
-		&res.Path,
-		&res.Name,
-		&res.Size,
-		&res.Type,
+		&res.UserID, &res.Path, &res.Name, &res.Size, &res.Type,
 	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, errs.ErrResourceNotFound
 		}
 
@@ -145,13 +124,7 @@ func (r *resourceRepository) Search(
 	return list, nil
 }
 
-func (r *resourceRepository) DeleteTx(
-	ctx context.Context,
-	tx pgx.Tx,
-	userID uint64,
-	path, name string,
-	resourceType models.ResourceType,
-) error {
+func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resource) error {
 	const (
 		qSingleDelete = `
 			DELETE FROM resources
@@ -164,28 +137,30 @@ func (r *resourceRepository) DeleteTx(
 		`
 	)
 
+	tx := corectx.TxFromContext(ctx)
+
 	var deleted int64
 
-	if resourceType == models.TypeDir {
+	if resource.IsDir() {
 		//	Remove provided folder
-		tag, err := tx.Exec(ctx, qSingleDelete, userID, resourceType, path, name)
+		tag, err := tx.Exec(ctx, qSingleDelete, resource.UserID, resource.Type, resource.Path, resource.Name)
 		if err != nil {
 			return err
 		}
 
 		deleted += tag.RowsAffected()
 
-		//	Remove all resources that's within provided folder
-		dirPath := strings.TrimLeft(path+name, "/") + "/"
+		dirPath := strings.TrimLeft(resource.FullPath(), "/") + "/"
 
-		tag, err = tx.Exec(ctx, qDeleteAll, userID, dirPath+"%")
+		//	Remove all resources that's within provided folder
+		tag, err = tx.Exec(ctx, qDeleteAll, resource.UserID, dirPath+"%")
 		if err != nil {
 			return err
 		}
 
 		deleted += tag.RowsAffected()
 	} else {
-		tag, err := tx.Exec(ctx, qSingleDelete, userID, resourceType, path, name)
+		tag, err := tx.Exec(ctx, qSingleDelete, resource.UserID, resource.Type, resource.Path, resource.Name)
 		if err != nil {
 			return err
 		}
@@ -198,4 +173,32 @@ func (r *resourceRepository) DeleteTx(
 	}
 
 	return nil
+}
+
+func (r *resourceRepository) Update(ctx context.Context, old *models.Resource, new *models.Resource) (*models.Resource, error) {
+	const q = `
+		UPDATE resources
+		SET name = $1, path = $2, type = $3
+		WHERE user_id = $4 AND type = $5 AND path = $6 AND name = $7
+		RETURNING user_id, path, name, size, type
+	`
+
+	tx := corectx.TxFromContext(ctx)
+
+	res := &models.Resource{}
+	if err := tx.QueryRow(
+		ctx, q,
+		new.Name, new.Path, new.Type,
+		old.UserID, old.Type, old.Path, old.Name,
+	).Scan(
+		&res.UserID, &res.Path, &res.Name, &res.Size, &res.Type,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errs.ErrResourceNotFound
+		}
+
+		return nil, err
+	}
+
+	return res, nil
 }

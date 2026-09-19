@@ -29,3 +29,7 @@ func (r Resource) ObjectKey() string {
 
 	return path.Join(rootDir, r.Path, r.Name)
 }
+
+func (r Resource) FullPath() string {
+	return path.Join(r.Path, r.Name)
+}

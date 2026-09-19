@@ -38,6 +38,7 @@ func NewResourceHandler(
 }
 
 func (h *resourceHandler) UploadResource(w http.ResponseWriter, r *http.Request) {
+	//	Parse
 	var maxMemory int64 = 10 << 20 // Upload 10 MiB into memory, rest goes to disk
 	if err := r.ParseMultipartForm(maxMemory); err != nil {
 		h.rend.Error(w, http.StatusBadRequest, message.ErrBadRequest)
@@ -56,6 +57,7 @@ func (h *resourceHandler) UploadResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	//	Upload
 	list, err := h.resourceSvc.Upload(r.Context(), req)
 
 	if errors.Is(err, errs.ErrResourceAlreadyExists) {
@@ -85,14 +87,14 @@ func (h *resourceHandler) GetResourceInfo(w http.ResponseWriter, r *http.Request
 
 	//	Get info
 	info, err := h.resourceSvc.GetInfo(r.Context(), req)
+
+	if errors.Is(err, errs.ErrResourceNotFound) {
+		h.rend.Error(w, http.StatusNotFound, message.ErrResourceNotFound)
+		return
+	}
+
 	if err != nil {
-		if errors.Is(err, errs.ErrResourceNotFound) {
-			h.rend.Error(w, http.StatusNotFound, message.ErrResourceNotFound)
-			return
-		}
-
 		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
-
 		return
 	}
 

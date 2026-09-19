@@ -1,10 +1,10 @@
 package middleware
 
 import (
+	"github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	"net/http"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/context"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"

@@ -119,7 +119,7 @@ func (a *App) registerRoutes() {
 			r.Use(
 				authMW.Authenticate,
 				//	Rate limit: 10 requests per 2 minutes per IP
-				//limiterMW.LimitByEndpoint(10, 2*time.Minute),
+				limiterMW.LimitByEndpoint(10, 2*time.Minute),
 			)
 
 			r.Get("/", resourceHandler.GetResourceInfo)

@@ -3,15 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	"mime/multipart"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	httpctx "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/context"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
@@ -28,21 +27,11 @@ type ResourceService interface {
 }
 
 type ResourceRepository interface {
-	BatchInsertTx(ctx context.Context, tx pgx.Tx, resources []models.Resource) error
-	Get(
-		ctx context.Context,
-		userID uint64,
-		path, name string,
-		resourceType models.ResourceType,
-	) (*models.Resource, error)
+	BatchInsert(ctx context.Context, resources []models.Resource) error
+	Get(ctx context.Context, resource *models.Resource) (*models.Resource, error)
+	Update(ctx context.Context, old *models.Resource, new *models.Resource) (*models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]*models.Resource, error)
-	DeleteTx(
-		ctx context.Context,
-		tx pgx.Tx,
-		userID uint64,
-		path, name string,
-		resourceType models.ResourceType,
-	) error
+	Delete(ctx context.Context, resource *models.Resource) error
 }
 
 type resourceService struct {
@@ -78,7 +67,7 @@ func (s *resourceService) Upload(
 	ctx context.Context,
 	req request.UploadResource,
 ) (response.ResourceInfoList, error) {
-	user := httpctx.UserFromContext(ctx)
+	user := corectx.UserFromContext(ctx)
 
 	uploadResources := make([]UploadResource, 0, len(req.Object))
 	rawResourceList := make([]models.Resource, 0, len(req.Object))
@@ -117,8 +106,11 @@ func (s *resourceService) Upload(
 	}
 	defer tx.Rollback(ctx)
 
+	//	Put TX into ctx
+	ctx = corectx.NewTxContext(ctx, tx)
+
 	//	Bulk insert resources into DB
-	if err := s.resourceRepo.BatchInsertTx(ctx, tx, resourceList); err != nil {
+	if err := s.resourceRepo.BatchInsert(ctx, resourceList); err != nil {
 		if !errors.Is(err, errs.ErrResourceAlreadyExists) {
 			s.log.Error("resource repo: failed to bulk insert", zap.Error(err))
 		}
@@ -220,12 +212,18 @@ func (s *resourceService) GetInfo(
 	ctx context.Context,
 	req request.GetResourceInfo,
 ) (response.ResourceInfo, error) {
-	user := httpctx.UserFromContext(ctx)
+	user := corectx.UserFromContext(ctx)
 
 	path, name := splitPath(req.Path)
 	resourceType := getResourceType(req.Path)
+	resource := &models.Resource{
+		UserID: user.ID,
+		Path:   path,
+		Name:   name,
+		Type:   resourceType,
+	}
 
-	res, err := s.resourceRepo.Get(ctx, user.ID, path, name, resourceType)
+	res, err := s.resourceRepo.Get(ctx, resource)
 	if err != nil {
 		if !errors.Is(err, errs.ErrResourceNotFound) {
 			s.log.Error("resource repo: failed to get resource", zap.Error(err))
@@ -246,7 +244,7 @@ func (s *resourceService) Search(
 	ctx context.Context,
 	req request.SearchResource,
 ) (response.ResourceInfoList, error) {
-	user := httpctx.UserFromContext(ctx)
+	user := corectx.UserFromContext(ctx)
 
 	list, err := s.resourceRepo.Search(ctx, user.ID, req.Query)
 	if err != nil {
@@ -269,7 +267,7 @@ func (s *resourceService) Search(
 }
 
 func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource) error {
-	user := httpctx.UserFromContext(ctx)
+	user := corectx.UserFromContext(ctx)
 
 	path, name := splitPath(req.Path)
 	resourceType := getResourceType(req.Path)
@@ -282,7 +280,18 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 	}
 	defer tx.Rollback(ctx)
 
-	if err := s.resourceRepo.DeleteTx(ctx, tx, user.ID, path, name, resourceType); err != nil {
+	//	Put TX into ctx
+	ctx = corectx.NewTxContext(ctx, tx)
+
+	resource := &models.Resource{
+		UserID: user.ID,
+		Path:   path,
+		Name:   name,
+		Type:   resourceType,
+	}
+
+	//	Delete from DB
+	if err := s.resourceRepo.Delete(ctx, resource); err != nil {
 		if !errors.Is(err, errs.ErrResourceNotFound) {
 			s.log.Error("resource repo: failed to get resource", zap.Error(err))
 		}

@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	"net/http"
 
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/context"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 )

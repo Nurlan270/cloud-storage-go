@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/iancoleman/strcase"
@@ -75,13 +74,6 @@ func registerCustomValidationRules(v *gpv.Validate) {
 			panic(fmt.Sprintf("validator: failed to register validation rule: %s", err))
 		}
 	}
-
-	//	Regexes
-	var (
-		username1Regex = regexp.MustCompile(`^[a-zA-Z0-9._]+$`)
-		username2Regex = regexp.MustCompile(`[a-zA-Z]`)
-		pathRegex      = regexp.MustCompile(`^/?[a-zA-Z0-9._-]+(?:/[a-zA-Z0-9._-]+)*/?$`)
-	)
 
 	//	Username
 	panicOnErr(v.RegisterValidation("username", func(fl gpv.FieldLevel) bool {
