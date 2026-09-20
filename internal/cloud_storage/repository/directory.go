@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -14,6 +15,7 @@ import (
 )
 
 type DirectoryRepository interface {
+	GetAll(ctx context.Context, userID uint64, path string) ([]models.Resource, error)
 	Create(ctx context.Context, dir models.Resource) (models.Resource, error)
 	Exists(ctx context.Context, dir models.Resource) (bool, error)
 }
@@ -24,6 +26,41 @@ type directoryRepository struct {
 
 func NewDirectoryRepository(pool *pgxpool.Pool) DirectoryRepository {
 	return &directoryRepository{pool: pool}
+}
+
+func (r *directoryRepository) GetAll(
+	ctx context.Context,
+	userID uint64,
+	path string,
+) ([]models.Resource, error) {
+	const q = `
+		SELECT path, name, size, type
+		FROM resources
+		WHERE user_id = $1 AND path = $2
+	`
+
+	rows, err := r.pool.Query(ctx, q, userID, path)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errs.ErrDirectoryNotFound
+		}
+
+		return nil, err
+	}
+
+	var resources []models.Resource
+
+	for rows.Next() {
+		var resource models.Resource
+
+		if err = rows.Scan(&resource.Path, &resource.Name, &resource.Size, &resource.Type); err != nil {
+			return nil, err
+		}
+
+		resources = append(resources, resource)
+	}
+
+	return resources, nil
 }
 
 func (r *directoryRepository) Create(

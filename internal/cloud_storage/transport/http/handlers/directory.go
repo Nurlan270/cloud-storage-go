@@ -14,6 +14,7 @@ import (
 
 type DirectoryHandler interface {
 	CreateDirectory(w http.ResponseWriter, r *http.Request)
+	GetDirectoryContent(w http.ResponseWriter, r *http.Request)
 }
 
 type directoryHandler struct {
@@ -55,7 +56,7 @@ func (h *directoryHandler) CreateDirectory(w http.ResponseWriter, r *http.Reques
 	}
 
 	if errors.Is(err, errs.ErrParentDirectoryNotExists) {
-		h.rend.Error(w, http.StatusConflict, message.ErrParentDirectoryNotExists)
+		h.rend.Error(w, http.StatusNotFound, message.ErrParentDirectoryNotExists)
 		return
 	}
 
@@ -65,4 +66,32 @@ func (h *directoryHandler) CreateDirectory(w http.ResponseWriter, r *http.Reques
 	}
 
 	h.rend.JSON(w, http.StatusCreated, info)
+}
+
+func (h *directoryHandler) GetDirectoryContent(w http.ResponseWriter, r *http.Request) {
+	//	Get data
+	req := request.GetDirectoryContent{
+		Path: r.URL.Query().Get("path"),
+	}
+
+	//	Validate
+	if err := h.validate.Struct(req); err != nil {
+		h.rend.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	//	Create
+	list, err := h.dirSvc.GetContent(r.Context(), req)
+
+	if errors.Is(err, errs.ErrDirectoryNotFound) {
+		h.rend.Error(w, http.StatusNotFound, message.ErrDirectoryNotExists)
+		return
+	}
+
+	if err != nil {
+		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
+		return
+	}
+
+	h.rend.JSON(w, http.StatusOK, list)
 }

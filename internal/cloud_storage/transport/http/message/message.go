@@ -8,6 +8,7 @@ var (
 	ErrResourceNotFound      = "Resource was not found."
 	ErrResourceAlreadyExists = "Resource already exists."
 
+	ErrDirectoryNotExists       = "Directory does not exist."
 	ErrDirectoryAlreadyExists   = "Directory already exists."
 	ErrParentDirectoryNotExists = "Parent directory does not exist."
 

@@ -139,6 +139,7 @@ func (a *App) registerRoutes() {
 			)
 
 			r.Post("/", directoryHandler.CreateDirectory)
+			r.Get("/", directoryHandler.GetDirectoryContent)
 		})
 	})
 }

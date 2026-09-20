@@ -12,9 +12,10 @@ var (
 
 	ErrSessionInvalid = errors.New("session invalid")
 
-	ErrResourceNotFound      = errors.New("resource does not found")
+	ErrResourceNotFound      = errors.New("resource not found")
 	ErrResourceAlreadyExists = errors.New("resource already exists")
 
+	ErrDirectoryNotFound        = errors.New("directory not found")
 	ErrDirectoryAlreadyExists   = errors.New("directory already exists")
 	ErrParentDirectoryNotExists = errors.New("parent directory does not exist")
 )

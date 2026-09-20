@@ -89,7 +89,8 @@ func registerCustomValidationRules(v *gpv.Validate) {
 	//	Path
 	panicOnErr(v.RegisterValidation("path", func(fl gpv.FieldLevel) bool {
 		path := fl.Field().String()
-		if path == "" {
+
+		if path == "" || path == "/" {
 			return true
 		}
 
