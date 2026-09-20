@@ -97,8 +97,9 @@ func registerCustomValidationRules(v *gpv.Validate) {
 			return false
 		}
 
-		for _, segment := range strings.Split(path, "/") {
-			if segment == "." || segment == ".." {
+		for _, part := range strings.Split(strings.Trim(path, "/"), "/") {
+			// Reject part containing only spaces & only dots.
+			if part == "" || strings.Trim(part, ".") == "" || strings.TrimSpace(part) == "" {
 				return false
 			}
 		}

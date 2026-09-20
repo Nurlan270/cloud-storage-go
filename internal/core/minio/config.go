@@ -1,6 +1,16 @@
 package minio
 
+import (
+	"fmt"
+)
+
 type Config struct {
-	User     string `env:"MINIO_USER,required"     mapstructure:"user"     validate:"required"`
-	Password string `env:"MINIO_PASSWORD,required" mapstructure:"password" validate:"required"`
+	Host     string `mapstructure:"host"     validate:"required"`
+	Port     uint16 `mapstructure:"port"     validate:"required"`
+	User     string `mapstructure:"user"     validate:"required" env:"MINIO_USER,required"`
+	Password string `mapstructure:"password" validate:"required" env:"MINIO_PASSWORD,required"`
+}
+
+func (c Config) GetAddr() string {
+	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }

@@ -7,11 +7,14 @@ http_server:
 database:
   host: postgres
   port: 5432
-  name: cloud_storage
 
 redis:
   host: redis
   port: 6379
+
+minio:
+  host: minio
+  port: 9000
 
 session:
   expires_in: 336h # 14 days

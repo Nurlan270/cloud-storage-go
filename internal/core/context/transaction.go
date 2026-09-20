@@ -2,8 +2,9 @@ package context
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5"
 	"net/http"
+
+	"github.com/jackc/pgx/v5"
 )
 
 var txCtxKey = &contextKey{"tx"}

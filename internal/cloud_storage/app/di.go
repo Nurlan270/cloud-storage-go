@@ -40,16 +40,19 @@ type diContainer struct {
 	rateLimitMiddleware middleware.RateLimitMiddleware
 
 	//	Handlers
-	authHandler     handlers.AuthHandler
-	userHandler     handlers.UserHandler
-	resourceHandler handlers.ResourceHandler
+	authHandler      handlers.AuthHandler
+	userHandler      handlers.UserHandler
+	resourceHandler  handlers.ResourceHandler
+	directoryHandler handlers.DirectoryHandler
 
 	//	Services
-	authSvc     service.AuthService
-	resourceSvc service.ResourceService
+	authSvc      service.AuthService
+	resourceSvc  service.ResourceService
+	directorySvc service.DirectoryService
 
 	//	Repositories
-	resourceRepo repository.ResourceRepository
+	resourceRepo  repository.ResourceRepository
+	directoryRepo repository.DirectoryRepository
 }
 
 // All dependencies are nil - they'll be injected
@@ -191,6 +194,30 @@ func (c *diContainer) ResourceRepo() repository.ResourceRepository {
 	}
 
 	return c.resourceRepo
+}
+
+func (c *diContainer) DirectoryHandler() handlers.DirectoryHandler {
+	if c.directoryHandler == nil {
+		c.directoryHandler = handlers.NewDirectoryHandler(c.DirectoryService(), c.Render(), c.Validator())
+	}
+
+	return c.directoryHandler
+}
+
+func (c *diContainer) DirectoryService() service.DirectoryService {
+	if c.directorySvc == nil {
+		c.directorySvc = service.NewDirectoryService(c.Minio(), c.DB(), c.DirectoryRepo())
+	}
+
+	return c.directorySvc
+}
+
+func (c *diContainer) DirectoryRepo() repository.DirectoryRepository {
+	if c.directoryRepo == nil {
+		c.directoryRepo = repository.NewDirectoryRepository(c.DB())
+	}
+
+	return c.directoryRepo
 }
 
 func (c *diContainer) Minio() *minio.Client {

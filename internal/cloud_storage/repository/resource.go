@@ -3,18 +3,18 @@ package repository
 import (
 	"context"
 	"errors"
-	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 )
 
 type ResourceRepository interface {
-	BatchInsert(ctx context.Context, resources []models.Resource) error
+	BatchCreate(ctx context.Context, resources []models.Resource) error
 	Get(ctx context.Context, resource *models.Resource) (*models.Resource, error)
 	Update(ctx context.Context, old *models.Resource, new *models.Resource) (*models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]*models.Resource, error)
@@ -29,7 +29,7 @@ func NewResourceRepository(pool *pgxpool.Pool) ResourceRepository {
 	return &resourceRepository{pool: pool}
 }
 
-func (r *resourceRepository) BatchInsert(
+func (r *resourceRepository) BatchCreate(
 	ctx context.Context,
 	resources []models.Resource,
 ) error {
@@ -109,7 +109,7 @@ func (r *resourceRepository) Search(
 		return nil, err
 	}
 
-	var list []*models.Resource
+	var resources []*models.Resource
 
 	for rows.Next() {
 		res := &models.Resource{}
@@ -118,10 +118,10 @@ func (r *resourceRepository) Search(
 			return nil, err
 		}
 
-		list = append(list, res)
+		resources = append(resources, res)
 	}
 
-	return list, nil
+	return resources, nil
 }
 
 func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resource) error {
@@ -175,7 +175,11 @@ func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resour
 	return nil
 }
 
-func (r *resourceRepository) Update(ctx context.Context, old *models.Resource, new *models.Resource) (*models.Resource, error) {
+func (r *resourceRepository) Update(
+	ctx context.Context,
+	old *models.Resource,
+	new *models.Resource,
+) (*models.Resource, error) {
 	const q = `
 		UPDATE resources
 		SET name = $1, path = $2, type = $3

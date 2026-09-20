@@ -1,12 +1,12 @@
 package middleware
 
 import (
-	"github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	"net/http"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	corehttp "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http"
 	rpcdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/rpc/dto"

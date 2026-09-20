@@ -27,7 +27,14 @@ func (r Resource) IsDir() bool {
 func (r Resource) ObjectKey() string {
 	var rootDir = fmt.Sprintf("user-%d-files", r.UserID)
 
-	return path.Join(rootDir, r.Path, r.Name)
+	key := path.Join(rootDir, r.Path, r.Name)
+
+	if r.IsDir() {
+		//	Add trailing slash so that MinIO will recognize it as directory
+		key += "/"
+	}
+
+	return key
 }
 
 func (r Resource) FullPath() string {

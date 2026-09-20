@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	"mime/multipart"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
+	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
@@ -27,7 +27,7 @@ type ResourceService interface {
 }
 
 type ResourceRepository interface {
-	BatchInsert(ctx context.Context, resources []models.Resource) error
+	BatchCreate(ctx context.Context, resources []models.Resource) error
 	Get(ctx context.Context, resource *models.Resource) (*models.Resource, error)
 	Update(ctx context.Context, old *models.Resource, new *models.Resource) (*models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]*models.Resource, error)
@@ -110,7 +110,7 @@ func (s *resourceService) Upload(
 	ctx = corectx.NewTxContext(ctx, tx)
 
 	//	Bulk insert resources into DB
-	if err := s.resourceRepo.BatchInsert(ctx, resourceList); err != nil {
+	if err := s.resourceRepo.BatchCreate(ctx, resourceList); err != nil {
 		if !errors.Is(err, errs.ErrResourceAlreadyExists) {
 			s.log.Error("resource repo: failed to bulk insert", zap.Error(err))
 		}

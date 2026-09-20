@@ -6,7 +6,10 @@ var (
 	ErrUserAlreadyExists = "User with provided username already exists."
 
 	ErrResourceNotFound      = "Resource was not found."
-	ErrResourceAlreadyExists = "Resource with provided name already exists in target directory."
+	ErrResourceAlreadyExists = "Resource already exists."
+
+	ErrDirectoryAlreadyExists   = "Directory already exists."
+	ErrParentDirectoryNotExists = "Parent directory does not exist."
 
 	ErrInternalServer  = "Something went wrong, please try again later."
 	ErrBadRequest      = "Request body is invalid."

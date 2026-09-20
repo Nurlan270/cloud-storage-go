@@ -127,6 +127,19 @@ func (a *App) registerRoutes() {
 			r.Delete("/", resourceHandler.DeleteResource)
 			r.Get("/search", resourceHandler.SearchResource)
 		})
+
+		//	Directory routes
+		r.Route("/directory", func(r chi.Router) {
+			directoryHandler := a.di.DirectoryHandler()
+
+			r.Use(
+				authMW.Authenticate,
+				//	Rate limit: 10 requests per 2 minutes per IP
+				limiterMW.LimitByEndpoint(10, 2*time.Minute),
+			)
+
+			r.Post("/", directoryHandler.CreateDirectory)
+		})
 	})
 }
 

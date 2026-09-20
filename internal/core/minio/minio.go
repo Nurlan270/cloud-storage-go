@@ -21,7 +21,7 @@ func Connect(conf Config) (*minio.Client, error) {
 }
 
 func connect(conf Config) (*minio.Client, error) {
-	client, err := minio.New("minio:9000", &minio.Options{
+	client, err := minio.New(conf.GetAddr(), &minio.Options{
 		Creds: credentials.NewStaticV4(conf.User, conf.Password, ""),
 	})
 	if err != nil {
