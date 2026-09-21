@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 	"errors"
-
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -14,7 +14,7 @@ import (
 )
 
 type DirectoryRepository interface {
-	GetAll(ctx context.Context, dir models.Resource) ([]models.Resource, error)
+	GetAll(ctx context.Context, dir models.Resource, recursive bool) ([]models.Resource, error)
 	Create(ctx context.Context, dir models.Resource) (models.Resource, error)
 	Exists(ctx context.Context, dir models.Resource) (bool, error)
 }
@@ -30,12 +30,21 @@ func NewDirectoryRepository(pool *pgxpool.Pool) DirectoryRepository {
 func (r *directoryRepository) GetAll(
 	ctx context.Context,
 	dir models.Resource,
+	recursive bool,
 ) ([]models.Resource, error) {
-	const q = `
-		SELECT path, name, size, type
-		FROM resources
-		WHERE user_id = $1 AND path = $2
-	`
+	const (
+		qLinear = `
+			SELECT user_id, path, name, size, type
+			FROM resources
+			WHERE user_id = $1 AND path = $2
+		`
+
+		qRecursive = `
+			SELECT user_id, path, name, size, type
+			FROM resources
+			WHERE user_id = $1 AND path LIKE $2
+		`
+	)
 
 	// Check whether provided dir exists
 	if exists, err := r.Exists(ctx, dir); err != nil {
@@ -44,10 +53,21 @@ func (r *directoryRepository) GetAll(
 		return nil, errs.ErrDirectoryNotFound
 	}
 
-	//	Get dir content
-	rows, err := r.pool.Query(ctx, q, dir.UserID, dir.FullPath())
-	if err != nil {
-		return nil, err
+	var rows pgx.Rows
+	var err error
+
+	if recursive {
+		//	Get dir content recursively
+		rows, err = r.pool.Query(ctx, qRecursive, dir.UserID, dir.FullPath()+"%")
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		//	Get dir content linearly
+		rows, err = r.pool.Query(ctx, qLinear, dir.UserID, dir.FullPath())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	resources := make([]models.Resource, 0)
@@ -55,7 +75,7 @@ func (r *directoryRepository) GetAll(
 	for rows.Next() {
 		var resource models.Resource
 
-		if err = rows.Scan(&resource.Path, &resource.Name, &resource.Size, &resource.Type); err != nil {
+		if err = rows.Scan(&resource.UserID, &resource.Path, &resource.Name, &resource.Size, &resource.Type); err != nil {
 			return nil, err
 		}
 
@@ -101,6 +121,10 @@ func (r *directoryRepository) Exists(ctx context.Context, dir models.Resource) (
 			WHERE user_id = $1 AND path = $2 AND name = $3 AND type = $4
 		)
 	`
+
+	if dir.Path == "/" && dir.Name == "" {
+		return true, nil
+	}
 
 	var exists bool
 	if err := r.pool.QueryRow(

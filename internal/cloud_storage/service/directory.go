@@ -22,7 +22,7 @@ type DirectoryService interface {
 }
 
 type DirectoryRepository interface {
-	GetAll(ctx context.Context, dir models.Resource) ([]models.Resource, error)
+	GetAll(ctx context.Context, dir models.Resource, recursive bool) ([]models.Resource, error)
 	Create(ctx context.Context, dir models.Resource) (models.Resource, error)
 	Exists(ctx context.Context, dir models.Resource) (bool, error)
 }
@@ -81,13 +81,11 @@ func (s *directoryService) Create(
 	}
 
 	//	Check whether parent directory exists
-	if parentDir.Path != "/" && parentDir.Name != "" {
-		if exists, err := s.dirRepo.Exists(ctx, parentDir); err != nil {
-			s.log.Error("directory repo: failed to check if directory exists", zap.Error(err))
-			return response.ResourceInfo{}, err
-		} else if !exists {
-			return response.ResourceInfo{}, errs.ErrParentDirectoryNotExists
-		}
+	if exists, err := s.dirRepo.Exists(ctx, parentDir); err != nil {
+		s.log.Error("directory repo: failed to check if directory exists", zap.Error(err))
+		return response.ResourceInfo{}, err
+	} else if !exists {
+		return response.ResourceInfo{}, errs.ErrParentDirectoryNotExists
 	}
 
 	//	Put into DB
@@ -142,7 +140,7 @@ func (s *directoryService) GetContent(
 	}
 
 	//	Get from DB
-	resources, err := s.dirRepo.GetAll(ctx, dir)
+	resources, err := s.dirRepo.GetAll(ctx, dir, false)
 	if err != nil {
 		if !errors.Is(err, errs.ErrDirectoryNotFound) {
 			s.log.Error("directory repo: failed to get dir content", zap.Error(err))

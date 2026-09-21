@@ -143,6 +143,11 @@ func (h *resourceHandler) DeleteResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if errors.Is(err, errs.ErrDirectoryNotFound) {
+		h.rend.Error(w, http.StatusNotFound, message.ErrDirectoryNotExists)
+		return
+	}
+
 	if err != nil {
 		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
 		return

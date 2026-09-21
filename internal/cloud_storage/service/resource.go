@@ -38,6 +38,7 @@ type resourceService struct {
 	client       *minio.Client
 	pool         *pgxpool.Pool
 	resourceRepo ResourceRepository
+	dirRepo      DirectoryRepository
 
 	log *logger.Logger
 }
@@ -46,11 +47,13 @@ func NewResourceService(
 	client *minio.Client,
 	pool *pgxpool.Pool,
 	resourceRepo ResourceRepository,
+	dirRepo DirectoryRepository,
 ) ResourceService {
 	return &resourceService{
 		client:       client,
 		pool:         pool,
 		resourceRepo: resourceRepo,
+		dirRepo:      dirRepo,
 		log:          logger.Get(),
 	}
 }
@@ -283,15 +286,53 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 	//	Put TX into ctx
 	ctx = corectx.NewTxContext(ctx, tx)
 
-	resource := &models.Resource{
+	resource := models.Resource{
 		UserID: user.ID,
 		Path:   path,
 		Name:   name,
 		Type:   resourceType,
 	}
 
+	var err error
+	content := make([]models.Resource, 0)
+
+	if resource.IsDir() {
+		//	Get dir content
+		content, err = s.dirRepo.GetAll(ctx, resource, true)
+		if err != nil {
+			return err
+		}
+	}
+
+	//	Delete from Bucket
+	if resource.IsDir() && len(content) > 0 {
+		objsCh := make(chan minio.ObjectInfo)
+
+		go func() {
+			defer close(objsCh)
+
+			for _, c := range content {
+				objsCh <- minio.ObjectInfo{
+					Key: c.ObjectKey(),
+				}
+			}
+		}()
+
+		//	Delete directory content first
+		minioErr := s.client.RemoveObjects(ctx, Bucket, objsCh, minio.RemoveObjectsOptions{})
+		for rmErr := range minioErr {
+			if rmErr.Err != nil {
+				return rmErr.Err
+			}
+		}
+	} else {
+		if err = s.client.RemoveObject(ctx, Bucket, resource.ObjectKey(), minio.RemoveObjectOptions{}); err != nil {
+			return err
+		}
+	}
+
 	//	Delete from DB
-	if err := s.resourceRepo.Delete(ctx, resource); err != nil {
+	if err = s.resourceRepo.Delete(ctx, &resource); err != nil {
 		if !errors.Is(err, errs.ErrResourceNotFound) {
 			s.log.Error("resource repo: failed to get resource", zap.Error(err))
 		}
@@ -300,7 +341,7 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 	}
 
 	//	Commit TX
-	if err := tx.Commit(ctx); err != nil {
+	if err = tx.Commit(ctx); err != nil {
 		s.log.Error("tx: failed to commit", zap.Error(err))
 		return err
 	}

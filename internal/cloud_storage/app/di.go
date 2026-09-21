@@ -182,7 +182,7 @@ func (c *diContainer) ResourceHandler() handlers.ResourceHandler {
 
 func (c *diContainer) ResourceService() service.ResourceService {
 	if c.resourceSvc == nil {
-		c.resourceSvc = service.NewResourceService(c.Minio(), c.DB(), c.ResourceRepo())
+		c.resourceSvc = service.NewResourceService(c.Minio(), c.DB(), c.ResourceRepo(), c.DirectoryRepo())
 	}
 
 	return c.resourceSvc
