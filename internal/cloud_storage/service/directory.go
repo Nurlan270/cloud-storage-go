@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
@@ -23,7 +22,7 @@ type DirectoryService interface {
 }
 
 type DirectoryRepository interface {
-	GetAll(ctx context.Context, userID uint64, path string) ([]models.Resource, error)
+	GetAll(ctx context.Context, dir models.Resource) ([]models.Resource, error)
 	Create(ctx context.Context, dir models.Resource) (models.Resource, error)
 	Exists(ctx context.Context, dir models.Resource) (bool, error)
 }
@@ -133,20 +132,24 @@ func (s *directoryService) GetContent(
 ) ([]models.Resource, error) {
 	user := corectx.UserFromContext(ctx)
 
-	path := "/"
-	if req.Path != "/" {
-		path = strings.Trim(req.Path, "/") + "/"
+	path, name := splitPath(req.Path)
+
+	dir := models.Resource{
+		UserID: user.ID,
+		Path:   path,
+		Name:   name,
+		Type:   models.TypeDir,
 	}
 
 	//	Get from DB
-	list, err := s.dirRepo.GetAll(ctx, user.ID, path)
+	resources, err := s.dirRepo.GetAll(ctx, dir)
 	if err != nil {
 		if !errors.Is(err, errs.ErrDirectoryNotFound) {
-			s.log.Error("directory repo: failed to get dir", zap.Error(err))
+			s.log.Error("directory repo: failed to get dir content", zap.Error(err))
 		}
 
 		return nil, err
 	}
 
-	return list, nil
+	return resources, nil
 }

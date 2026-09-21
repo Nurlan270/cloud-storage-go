@@ -3,6 +3,7 @@ package models
 import (
 	"fmt"
 	"path"
+	"strings"
 )
 
 type ResourceType string
@@ -38,5 +39,11 @@ func (r Resource) ObjectKey() string {
 }
 
 func (r Resource) FullPath() string {
-	return path.Join(r.Path, r.Name)
+	str := strings.TrimLeft(path.Join(r.Path, r.Name), "/")
+
+	if r.IsDir() {
+		str += "/"
+	}
+
+	return str
 }

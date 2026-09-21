@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -150,10 +149,8 @@ func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resour
 
 		deleted += tag.RowsAffected()
 
-		dirPath := strings.TrimLeft(resource.FullPath(), "/") + "/"
-
 		//	Remove all resources that's within provided folder
-		tag, err = tx.Exec(ctx, qDeleteAll, resource.UserID, dirPath+"%")
+		tag, err = tx.Exec(ctx, qDeleteAll, resource.UserID, resource.FullPath()+"%")
 		if err != nil {
 			return err
 		}
