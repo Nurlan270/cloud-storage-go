@@ -55,8 +55,8 @@ func (h *directoryHandler) CreateDirectory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if errors.Is(err, errs.ErrParentDirectoryNotExists) {
-		h.rend.Error(w, http.StatusNotFound, message.ErrParentDirectoryNotExists)
+	if errors.Is(err, errs.ErrParentDirectoryNotFound) {
+		h.rend.Error(w, http.StatusNotFound, message.ErrParentDirectoryNotFound)
 		return
 	}
 
@@ -84,7 +84,7 @@ func (h *directoryHandler) GetDirectoryContent(w http.ResponseWriter, r *http.Re
 	list, err := h.dirSvc.GetContent(r.Context(), req)
 
 	if errors.Is(err, errs.ErrDirectoryNotFound) {
-		h.rend.Error(w, http.StatusNotFound, message.ErrDirectoryNotExists)
+		h.rend.Error(w, http.StatusNotFound, message.ErrDirectoryNotFound)
 		return
 	}
 

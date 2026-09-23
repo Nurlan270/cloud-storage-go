@@ -15,9 +15,9 @@ var (
 	ErrResourceNotFound      = errors.New("resource not found")
 	ErrResourceAlreadyExists = errors.New("resource already exists")
 
-	ErrDirectoryNotFound        = errors.New("directory not found")
-	ErrDirectoryAlreadyExists   = errors.New("directory already exists")
-	ErrParentDirectoryNotExists = errors.New("parent directory does not exist")
+	ErrDirectoryNotFound       = errors.New("directory not found")
+	ErrDirectoryAlreadyExists  = errors.New("directory already exists")
+	ErrParentDirectoryNotFound = errors.New("parent directory does not exist")
 )
 
 type ErrValidation struct {

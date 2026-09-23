@@ -118,14 +118,15 @@ func (a *App) registerRoutes() {
 
 			r.Use(
 				authMW.Authenticate,
-				//	Rate limit: 10 requests per 2 minutes per IP
-				limiterMW.LimitByEndpoint(10, 2*time.Minute),
+				//	Rate limit: 10 requests per minute per IP
+				limiterMW.LimitByEndpoint(10, time.Minute),
 			)
 
 			r.Get("/", resourceHandler.GetResourceInfo)
 			r.Post("/", resourceHandler.UploadResource)
 			r.Delete("/", resourceHandler.DeleteResource)
 			r.Get("/search", resourceHandler.SearchResource)
+			r.Get("/download", resourceHandler.DownloadResource)
 		})
 
 		//	Directory routes

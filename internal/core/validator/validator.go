@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/iancoleman/strcase"
 
@@ -90,18 +91,29 @@ func registerCustomValidationRules(v *gpv.Validate) {
 	panicOnErr(v.RegisterValidation("path", func(fl gpv.FieldLevel) bool {
 		path := fl.Field().String()
 
+		//	Allow root path
 		if path == "" || path == "/" {
 			return true
 		}
 
-		if !pathRegex.MatchString(path) {
-			return false
-		}
+		parts := strings.Split(strings.Trim(path, "/"), "/")
 
-		for _, part := range strings.Split(strings.Trim(path, "/"), "/") {
-			// Reject part containing only spaces & only dots.
-			if part == "" || strings.Trim(part, ".") == "" || strings.TrimSpace(part) == "" {
+		for _, part := range parts {
+			//	Reject if part is empty.
+			if part == "" {
 				return false
+			}
+
+			// Reject if part is containing only spaces/dots.
+			if strings.Trim(part, ".") == "" || strings.TrimSpace(part) == "" {
+				return false
+			}
+
+			// Reject control characters.
+			for _, r := range part {
+				if unicode.IsControl(r) {
+					return false
+				}
 			}
 		}
 

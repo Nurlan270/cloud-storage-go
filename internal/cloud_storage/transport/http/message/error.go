@@ -8,9 +8,9 @@ var (
 	ErrResourceNotFound      = "Resource was not found."
 	ErrResourceAlreadyExists = "Resource already exists."
 
-	ErrDirectoryNotExists       = "Directory does not exist."
-	ErrDirectoryAlreadyExists   = "Directory already exists."
-	ErrParentDirectoryNotExists = "Parent directory does not exist."
+	ErrDirectoryNotFound       = "Directory was not found."
+	ErrDirectoryAlreadyExists  = "Directory already exists."
+	ErrParentDirectoryNotFound = "Parent directory was not found."
 
 	ErrInternalServer  = "Something went wrong, please try again later."
 	ErrBadRequest      = "Request body is invalid."

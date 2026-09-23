@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
 	"mime/multipart"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,6 +25,7 @@ type ResourceService interface {
 	GetInfo(ctx context.Context, req request.GetResourceInfo) (response.ResourceInfo, error)
 	Search(ctx context.Context, req request.SearchResource) (response.ResourceInfoList, error)
 	Delete(ctx context.Context, req request.DeleteResource) error
+	Download(ctx context.Context, req request.DownloadResource) (DownloadResult, error)
 }
 
 type ResourceRepository interface {
@@ -269,6 +271,7 @@ func (s *resourceService) Search(
 	return info, nil
 }
 
+//nolint:gocyclo
 func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource) error {
 	user := corectx.UserFromContext(ctx)
 
@@ -294,6 +297,7 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 	}
 
 	var err error
+
 	content := make([]models.Resource, 0)
 
 	if resource.IsDir() {
@@ -326,7 +330,12 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 			}
 		}
 	} else {
-		if err = s.client.RemoveObject(ctx, Bucket, resource.ObjectKey(), minio.RemoveObjectOptions{}); err != nil {
+		if err = s.client.RemoveObject(
+			ctx,
+			Bucket,
+			resource.ObjectKey(),
+			minio.RemoveObjectOptions{},
+		); err != nil {
 			return err
 		}
 	}
@@ -347,4 +356,55 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 	}
 
 	return nil
+}
+
+type DownloadResult struct {
+	Content io.ReadCloser
+	Name    string
+	Size    int64
+	Type    string
+}
+
+func (s *resourceService) Download(
+	ctx context.Context,
+	req request.DownloadResource,
+) (DownloadResult, error) {
+	//	Build resource from request
+	user := corectx.UserFromContext(ctx)
+	path, name := splitPath(req.Path)
+	resourceType := getResourceType(req.Path)
+
+	resource := models.Resource{
+		UserID: user.ID,
+		Path:   path,
+		Name:   name,
+		Type:   resourceType,
+	}
+
+	//	Check whether provided resource exists
+	if _, err := s.resourceRepo.Get(ctx, &resource); err != nil {
+		if !errors.Is(err, errs.ErrResourceNotFound) {
+			s.log.Error("resource repo: failed to get resource", zap.Error(err))
+		}
+
+		return DownloadResult{}, err
+	}
+
+	//	Get actual resource from MinIO
+	content, err := s.client.GetObject(ctx, Bucket, resource.ObjectKey(), minio.GetObjectOptions{})
+	if err != nil {
+		return DownloadResult{}, err
+	}
+
+	info, err := content.Stat()
+	if err != nil {
+		return DownloadResult{}, err
+	}
+
+	return DownloadResult{
+		Content: content,
+		Name:    resource.Name,
+		Size:    info.Size,
+		Type:    info.ContentType,
+	}, nil
 }

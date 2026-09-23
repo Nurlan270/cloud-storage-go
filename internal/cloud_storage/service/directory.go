@@ -85,7 +85,7 @@ func (s *directoryService) Create(
 		s.log.Error("directory repo: failed to check if directory exists", zap.Error(err))
 		return response.ResourceInfo{}, err
 	} else if !exists {
-		return response.ResourceInfo{}, errs.ErrParentDirectoryNotExists
+		return response.ResourceInfo{}, errs.ErrParentDirectoryNotFound
 	}
 
 	//	Put into DB

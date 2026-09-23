@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -53,8 +54,10 @@ func (r *directoryRepository) GetAll(
 		return nil, errs.ErrDirectoryNotFound
 	}
 
-	var rows pgx.Rows
-	var err error
+	var (
+		rows pgx.Rows
+		err  error
+	)
 
 	if recursive {
 		//	Get dir content recursively
@@ -75,7 +78,13 @@ func (r *directoryRepository) GetAll(
 	for rows.Next() {
 		var resource models.Resource
 
-		if err = rows.Scan(&resource.UserID, &resource.Path, &resource.Name, &resource.Size, &resource.Type); err != nil {
+		if err = rows.Scan(
+			&resource.UserID,
+			&resource.Path,
+			&resource.Name,
+			&resource.Size,
+			&resource.Type,
+		); err != nil {
 			return nil, err
 		}
 
