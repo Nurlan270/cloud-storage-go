@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/minio/minio-go/v7"
 	"go.uber.org/zap"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
@@ -13,6 +12,7 @@ import (
 	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/minio"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 )
 
@@ -28,7 +28,7 @@ type DirectoryRepository interface {
 }
 
 type directoryService struct {
-	client  *minio.Client
+	client  minio.Client
 	pool    *pgxpool.Pool
 	dirRepo DirectoryRepository
 
@@ -36,7 +36,7 @@ type directoryService struct {
 }
 
 func NewDirectoryService(
-	client *minio.Client,
+	client minio.Client,
 	pool *pgxpool.Pool,
 	dirRepo DirectoryRepository,
 ) DirectoryService {
@@ -98,16 +98,15 @@ func (s *directoryService) Create(
 		return response.ResourceInfo{}, err
 	}
 
+	putOpts := minio.PutOptions{
+		Reader:      nil,
+		Key:         dir.ObjectKey(),
+		Size:        0,
+		ContentType: "application/octet-stream",
+	}
+
 	//	Put into Bucket
-	if _, err = s.client.PutObject(
-		ctx,
-		Bucket,
-		dir.ObjectKey(),
-		nil,
-		0,
-		minio.PutObjectOptions{},
-	); err != nil {
-		s.log.Error("failed to put object into bucket", zap.Error(err))
+	if err = s.client.Put(ctx, putOpts); err != nil {
 		return response.ResourceInfo{}, err
 	}
 

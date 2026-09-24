@@ -4,18 +4,16 @@ import (
 	"context"
 	"errors"
 	"io"
-	"mime/multipart"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/minio/minio-go/v7"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/minio"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/util"
 )
@@ -36,8 +34,16 @@ type ResourceRepository interface {
 	Delete(ctx context.Context, resource *models.Resource) error
 }
 
+type MinioClient interface {
+	Get(ctx context.Context, resource models.Resource) (minio.GetResult, error)
+	Put(ctx context.Context, opts minio.PutOptions) error
+	PutAll(ctx context.Context, entities []minio.PutAllEntities) error
+	Delete(ctx context.Context, resource models.Resource) error
+	DeleteAll(ctx context.Context, resources []models.Resource) error
+}
+
 type resourceService struct {
-	client       *minio.Client
+	client       MinioClient
 	pool         *pgxpool.Pool
 	resourceRepo ResourceRepository
 	dirRepo      DirectoryRepository
@@ -46,7 +52,7 @@ type resourceService struct {
 }
 
 func NewResourceService(
-	client *minio.Client,
+	client MinioClient,
 	pool *pgxpool.Pool,
 	resourceRepo ResourceRepository,
 	dirRepo DirectoryRepository,
@@ -60,21 +66,13 @@ func NewResourceService(
 	}
 }
 
-const Bucket = "user-files"
-
-type UploadResource struct {
-	Resource models.Resource
-	Object   *multipart.FileHeader
-}
-
-//nolint:gocyclo
 func (s *resourceService) Upload(
 	ctx context.Context,
 	req request.UploadResource,
 ) (response.ResourceInfoList, error) {
 	user := corectx.UserFromContext(ctx)
 
-	uploadResources := make([]UploadResource, 0, len(req.Object))
+	uploadEntities := make([]minio.PutAllEntities, 0, len(req.Object))
 	rawResourceList := make([]models.Resource, 0, len(req.Object))
 
 	for _, obj := range req.Object {
@@ -92,7 +90,7 @@ func (s *resourceService) Upload(
 				continue
 			}
 
-			uploadResources = append(uploadResources, UploadResource{
+			uploadEntities = append(uploadEntities, minio.PutAllEntities{
 				Resource: resource,
 				Object:   obj,
 			})
@@ -123,74 +121,9 @@ func (s *resourceService) Upload(
 		return nil, err
 	}
 
-	//	MinIO upload
-	g, gctx := errgroup.WithContext(ctx)
-
-	objsCh := make(chan minio.SnowballObject)
-
-	g.Go(func() error {
-		defer close(objsCh)
-
-		for _, item := range uploadResources {
-			file, err := item.Object.Open()
-			if err != nil {
-				s.log.Error(
-					"failed to open object",
-					zap.Any("object", item.Object),
-					zap.Error(err),
-				)
-
-				return err
-			}
-
-			//	File closer
-			closeFileFn := func() {
-				if err = file.Close(); err != nil {
-					s.log.Warn("failed to close file",
-						zap.Any("file", file), zap.Error(err),
-					)
-				}
-			}
-
-			obj := minio.SnowballObject{
-				Key:     item.Resource.ObjectKey(),
-				Size:    *item.Resource.Size,
-				Content: file,
-				Close:   closeFileFn,
-			}
-
-			select {
-			case objsCh <- obj:
-				// MinIO consumed object. It's in charge of closing opened file.
-			case <-gctx.Done():
-				// MinIO stopped consuming. Close opened file manually.
-				closeFileFn()
-				return gctx.Err()
-			}
-		}
-
-		return nil
-	})
-
-	g.Go(func() error {
-		opts := minio.SnowballOptions{
-			InMemory: false,
-			Compress: true,
-			SkipErrs: false,
-		}
-
-		//	Put resource into bucket using tar archive containing all uploaded resources
-		if err := s.client.PutObjectsSnowball(ctx, Bucket, opts, objsCh); err != nil {
-			s.log.Error("minio: failed to put objects into bucket", zap.Error(err))
-			return err
-		}
-
-		return nil
-	})
-
-	//	Wait for MinIO to finish upload
-	if err := g.Wait(); err != nil {
-		return nil, err
+	//	Put resources into bucket
+	if err := s.client.PutAll(ctx, uploadEntities); err != nil {
+		return response.ResourceInfoList{}, err
 	}
 
 	//	Commit TX
@@ -200,7 +133,7 @@ func (s *resourceService) Upload(
 	}
 
 	//	Convert models into response dto
-	resp := make(response.ResourceInfoList, 0, len(uploadResources))
+	resp := make(response.ResourceInfoList, 0, len(uploadEntities))
 	for _, res := range resourceList {
 		resp = append(resp, &response.ResourceInfo{
 			Path: res.Path,
@@ -298,44 +231,23 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 
 	var err error
 
-	content := make([]models.Resource, 0)
+	resources := make([]models.Resource, 0)
 
 	if resource.IsDir() {
-		//	Get dir content
-		content, err = s.dirRepo.GetAll(ctx, resource, true)
+		//	Get directory content
+		resources, err = s.dirRepo.GetAll(ctx, resource, true)
 		if err != nil {
 			return err
 		}
 	}
 
 	//	Delete from Bucket
-	if resource.IsDir() && len(content) > 0 {
-		objsCh := make(chan minio.ObjectInfo)
-
-		go func() {
-			defer close(objsCh)
-
-			for _, c := range content {
-				objsCh <- minio.ObjectInfo{
-					Key: c.ObjectKey(),
-				}
-			}
-		}()
-
-		//	Delete directory content first
-		minioErr := s.client.RemoveObjects(ctx, Bucket, objsCh, minio.RemoveObjectsOptions{})
-		for rmErr := range minioErr {
-			if rmErr.Err != nil {
-				return rmErr.Err
-			}
+	if len(resources) > 0 {
+		if err = s.client.DeleteAll(ctx, resources); err != nil {
+			return err
 		}
 	} else {
-		if err = s.client.RemoveObject(
-			ctx,
-			Bucket,
-			resource.ObjectKey(),
-			minio.RemoveObjectOptions{},
-		); err != nil {
+		if err = s.client.Delete(ctx, resource); err != nil {
 			return err
 		}
 	}
@@ -391,20 +303,15 @@ func (s *resourceService) Download(
 	}
 
 	//	Get actual resource from MinIO
-	content, err := s.client.GetObject(ctx, Bucket, resource.ObjectKey(), minio.GetObjectOptions{})
-	if err != nil {
-		return DownloadResult{}, err
-	}
-
-	info, err := content.Stat()
+	result, err := s.client.Get(ctx, resource)
 	if err != nil {
 		return DownloadResult{}, err
 	}
 
 	return DownloadResult{
-		Content: content,
-		Name:    resource.Name,
-		Size:    info.Size,
-		Type:    info.ContentType,
+		Content: result.Content,
+		Name:    result.Name,
+		Size:    result.Size,
+		Type:    result.ContentType,
 	}, nil
 }

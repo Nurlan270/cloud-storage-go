@@ -5,7 +5,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/minio/minio-go/v7"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/closer"
 	conf "github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/config"
@@ -24,9 +23,9 @@ type diContainer struct {
 	conf *conf.Config
 
 	//	Core dependencies
-	dbPool    *pgxpool.Pool
-	minio     *minio.Client
-	validator *validator.Validate
+	dbPool      *pgxpool.Pool
+	minioClient coreminio.Client
+	validator   *validator.Validate
 
 	//	HTTP
 	router chi.Router
@@ -182,7 +181,12 @@ func (c *diContainer) ResourceHandler() handlers.ResourceHandler {
 
 func (c *diContainer) ResourceService() service.ResourceService {
 	if c.resourceSvc == nil {
-		c.resourceSvc = service.NewResourceService(c.Minio(), c.DB(), c.ResourceRepo(), c.DirectoryRepo())
+		c.resourceSvc = service.NewResourceService(
+			c.MinioClient(),
+			c.DB(),
+			c.ResourceRepo(),
+			c.DirectoryRepo(),
+		)
 	}
 
 	return c.resourceSvc
@@ -206,7 +210,7 @@ func (c *diContainer) DirectoryHandler() handlers.DirectoryHandler {
 
 func (c *diContainer) DirectoryService() service.DirectoryService {
 	if c.directorySvc == nil {
-		c.directorySvc = service.NewDirectoryService(c.Minio(), c.DB(), c.DirectoryRepo())
+		c.directorySvc = service.NewDirectoryService(c.MinioClient(), c.DB(), c.DirectoryRepo())
 	}
 
 	return c.directorySvc
@@ -220,10 +224,10 @@ func (c *diContainer) DirectoryRepo() repository.DirectoryRepository {
 	return c.directoryRepo
 }
 
-func (c *diContainer) Minio() *minio.Client {
-	if c.minio == nil {
-		c.minio = coreminio.MustConnect(c.conf.Minio)
+func (c *diContainer) MinioClient() coreminio.Client {
+	if c.minioClient == nil {
+		c.minioClient = coreminio.MustNew(c.conf.Minio)
 	}
 
-	return c.minio
+	return c.minioClient
 }
