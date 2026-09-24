@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -32,7 +31,7 @@ type directoryService struct {
 	pool    *pgxpool.Pool
 	dirRepo DirectoryRepository
 
-	log *logger.Logger
+	log *zap.Logger
 }
 
 func NewDirectoryService(
@@ -40,11 +39,14 @@ func NewDirectoryService(
 	pool *pgxpool.Pool,
 	dirRepo DirectoryRepository,
 ) DirectoryService {
+	log := logger.Get().With(
+		zap.String("src", "directory service"))
+
 	return &directoryService{
 		client:  client,
 		pool:    pool,
 		dirRepo: dirRepo,
-		log:     logger.Get(),
+		log:     log,
 	}
 }
 
@@ -82,7 +84,6 @@ func (s *directoryService) Create(
 
 	//	Check whether parent directory exists
 	if exists, err := s.dirRepo.Exists(ctx, parentDir); err != nil {
-		s.log.Error("directory repo: failed to check if directory exists", zap.Error(err))
 		return response.ResourceInfo{}, err
 	} else if !exists {
 		return response.ResourceInfo{}, errs.ErrParentDirectoryNotFound
@@ -91,10 +92,6 @@ func (s *directoryService) Create(
 	//	Put into DB
 	res, err := s.dirRepo.Create(ctx, dir)
 	if err != nil {
-		if !errors.Is(err, errs.ErrDirectoryAlreadyExists) {
-			s.log.Error("directory repo: failed to get dir", zap.Error(err))
-		}
-
 		return response.ResourceInfo{}, err
 	}
 
@@ -141,10 +138,6 @@ func (s *directoryService) GetContent(
 	//	Get from DB
 	resources, err := s.dirRepo.GetAll(ctx, dir, false)
 	if err != nil {
-		if !errors.Is(err, errs.ErrDirectoryNotFound) {
-			s.log.Error("directory repo: failed to get dir content", zap.Error(err))
-		}
-
 		return nil, err
 	}
 

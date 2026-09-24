@@ -6,9 +6,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 
 	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 )
 
@@ -22,10 +24,18 @@ type ResourceRepository interface {
 
 type resourceRepository struct {
 	pool *pgxpool.Pool
+
+	log *zap.Logger
 }
 
 func NewResourceRepository(pool *pgxpool.Pool) ResourceRepository {
-	return &resourceRepository{pool: pool}
+	log := logger.Get().With(
+		zap.String("src", "resource repository"))
+
+	return &resourceRepository{
+		pool: pool,
+		log:  log,
+	}
 }
 
 func (r *resourceRepository) BatchCreate(
@@ -53,6 +63,8 @@ func (r *resourceRepository) BatchCreate(
 	for range resources {
 		tag, err := br.Exec()
 		if err != nil {
+			r.log.Error("failed to batch create", zap.Error(err))
+
 			return err
 		}
 
@@ -84,6 +96,8 @@ func (r *resourceRepository) Get(ctx context.Context, resource *models.Resource)
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, errs.ErrResourceNotFound
+		} else {
+			r.log.Error("failed to get", zap.Error(err))
 		}
 
 		return nil, err
@@ -105,6 +119,8 @@ func (r *resourceRepository) Search(
 
 	rows, err := r.pool.Query(ctx, q, userID, "%"+query+"%")
 	if err != nil {
+		r.log.Error("failed to search", zap.Error(err))
+
 		return nil, err
 	}
 
@@ -114,6 +130,8 @@ func (r *resourceRepository) Search(
 		res := &models.Resource{}
 
 		if err = rows.Scan(&res.UserID, &res.Path, &res.Name, &res.Size, &res.Type); err != nil {
+			r.log.Error("failed to search", zap.Error(err))
+
 			return nil, err
 		}
 
@@ -144,6 +162,8 @@ func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resour
 		//	Remove provided folder
 		tag, err := tx.Exec(ctx, qSingleDelete, resource.UserID, resource.Type, resource.Path, resource.Name)
 		if err != nil {
+			r.log.Error("failed to single delete", zap.Error(err))
+
 			return err
 		}
 
@@ -152,6 +172,8 @@ func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resour
 		//	Remove all resources that's within provided folder
 		tag, err = tx.Exec(ctx, qDeleteAll, resource.UserID, resource.FullPath()+"%")
 		if err != nil {
+			r.log.Error("failed to delete all", zap.Error(err))
+
 			return err
 		}
 
@@ -159,6 +181,8 @@ func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resour
 	} else {
 		tag, err := tx.Exec(ctx, qSingleDelete, resource.UserID, resource.Type, resource.Path, resource.Name)
 		if err != nil {
+			r.log.Error("failed to single delete", zap.Error(err))
+
 			return err
 		}
 

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,7 +10,6 @@ import (
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
-	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/minio"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
@@ -48,7 +46,7 @@ type resourceService struct {
 	resourceRepo ResourceRepository
 	dirRepo      DirectoryRepository
 
-	log *logger.Logger
+	log *zap.Logger
 }
 
 func NewResourceService(
@@ -57,12 +55,15 @@ func NewResourceService(
 	resourceRepo ResourceRepository,
 	dirRepo DirectoryRepository,
 ) ResourceService {
+	log := logger.Get().With(
+		zap.String("src", "resource service"))
+
 	return &resourceService{
 		client:       client,
 		pool:         pool,
 		resourceRepo: resourceRepo,
 		dirRepo:      dirRepo,
-		log:          logger.Get(),
+		log:          log,
 	}
 }
 
@@ -114,10 +115,6 @@ func (s *resourceService) Upload(
 
 	//	Bulk insert resources into DB
 	if err := s.resourceRepo.BatchCreate(ctx, resourceList); err != nil {
-		if !errors.Is(err, errs.ErrResourceAlreadyExists) {
-			s.log.Error("resource repo: failed to bulk insert", zap.Error(err))
-		}
-
 		return nil, err
 	}
 
@@ -163,10 +160,6 @@ func (s *resourceService) GetInfo(
 
 	res, err := s.resourceRepo.Get(ctx, resource)
 	if err != nil {
-		if !errors.Is(err, errs.ErrResourceNotFound) {
-			s.log.Error("resource repo: failed to get resource", zap.Error(err))
-		}
-
 		return response.ResourceInfo{}, err
 	}
 
@@ -186,7 +179,6 @@ func (s *resourceService) Search(
 
 	list, err := s.resourceRepo.Search(ctx, user.ID, req.Query)
 	if err != nil {
-		s.log.Error("failed to search resource", zap.Error(err))
 		return nil, err
 	}
 
@@ -254,10 +246,6 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 
 	//	Delete from DB
 	if err = s.resourceRepo.Delete(ctx, &resource); err != nil {
-		if !errors.Is(err, errs.ErrResourceNotFound) {
-			s.log.Error("resource repo: failed to get resource", zap.Error(err))
-		}
-
 		return err
 	}
 
@@ -295,10 +283,6 @@ func (s *resourceService) Download(
 
 	//	Check whether provided resource exists
 	if _, err := s.resourceRepo.Get(ctx, &resource); err != nil {
-		if !errors.Is(err, errs.ErrResourceNotFound) {
-			s.log.Error("resource repo: failed to get resource", zap.Error(err))
-		}
-
 		return DownloadResult{}, err
 	}
 

@@ -8,9 +8,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 
 	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 )
 
@@ -22,10 +24,18 @@ type DirectoryRepository interface {
 
 type directoryRepository struct {
 	pool *pgxpool.Pool
+
+	log *zap.Logger
 }
 
 func NewDirectoryRepository(pool *pgxpool.Pool) DirectoryRepository {
-	return &directoryRepository{pool: pool}
+	log := logger.Get().With(
+		zap.String("src", "directory repository"))
+
+	return &directoryRepository{
+		pool: pool,
+		log:  log,
+	}
 }
 
 func (r *directoryRepository) GetAll(
@@ -63,12 +73,16 @@ func (r *directoryRepository) GetAll(
 		//	Get dir content recursively
 		rows, err = r.pool.Query(ctx, qRecursive, dir.UserID, dir.FullPath()+"%")
 		if err != nil {
+			r.log.Error("failed to get all recursively", zap.Error(err))
+
 			return nil, err
 		}
 	} else {
 		//	Get dir content linearly
 		rows, err = r.pool.Query(ctx, qLinear, dir.UserID, dir.FullPath())
 		if err != nil {
+			r.log.Error("failed to get all linearly", zap.Error(err))
+
 			return nil, err
 		}
 	}
@@ -115,6 +129,8 @@ func (r *directoryRepository) Create(
 	); err != nil {
 		if errIs(err, pgerrcode.UniqueViolation) {
 			return res, errs.ErrDirectoryAlreadyExists
+		} else {
+			r.log.Error("failed to create", zap.Error(err))
 		}
 
 		return res, err
@@ -140,6 +156,8 @@ func (r *directoryRepository) Exists(ctx context.Context, dir models.Resource) (
 		ctx, q,
 		dir.UserID, dir.Path, dir.Name, dir.Type,
 	).Scan(&exists); err != nil {
+		r.log.Error("failed to check for existence", zap.Error(err))
+
 		return exists, err
 	}
 
