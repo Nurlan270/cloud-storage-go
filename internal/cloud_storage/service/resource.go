@@ -3,12 +3,14 @@ package service
 import (
 	"context"
 	"io"
+	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
+	"github.com/Nurlan270/cloud-storage-go/internal/core/archiver"
 	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/minio"
@@ -34,6 +36,7 @@ type ResourceRepository interface {
 
 type MinioClient interface {
 	Get(ctx context.Context, resource models.Resource) (minio.GetResult, error)
+	GetAll(ctx context.Context, resources []models.Resource) ([]minio.GetResult, error)
 	Put(ctx context.Context, opts minio.PutOptions) error
 	PutAll(ctx context.Context, entities []minio.PutAllEntities) error
 	Delete(ctx context.Context, resource models.Resource) error
@@ -263,6 +266,9 @@ type DownloadResult struct {
 	Name    string
 	Size    int64
 	Type    string
+
+	//	Function to remove downloaded archive file after streaming to user
+	Remove func()
 }
 
 func (s *resourceService) Download(
@@ -281,21 +287,100 @@ func (s *resourceService) Download(
 		Type:   resourceType,
 	}
 
+	var result DownloadResult
+
 	//	Check whether provided resource exists
 	if _, err := s.resourceRepo.Get(ctx, &resource); err != nil {
-		return DownloadResult{}, err
+		return result, err
 	}
 
 	//	Get actual resource from MinIO
-	result, err := s.client.Get(ctx, resource)
-	if err != nil {
-		return DownloadResult{}, err
+	if resource.IsDir() {
+		//	Get directory content
+		content, err := s.dirRepo.GetAll(ctx, resource, true)
+		if err != nil {
+			return result, err
+		}
+
+		//	Get resources from bucket
+		resources, err := s.client.GetAll(ctx, content)
+		if err != nil {
+			return result, err
+		}
+
+		archiveFiles := make([]archiver.ArchiveFile, 0, len(resources))
+
+		for _, res := range resources {
+			//	Create tmp file
+			file, err := os.CreateTemp(archiver.ArchiveFilesDir, res.Name)
+			if err != nil {
+				s.log.Error("failed to create tmp file", zap.Error(err))
+
+				s.closeFile(res.Content)
+
+				return result, err
+			}
+
+			//	Copy content into tmp file
+			if _, err = io.Copy(file, res.Content); err != nil {
+				s.log.Error("failed to copy object content into tmp file", zap.Error(err))
+
+				s.removeFile(file.Name())
+				s.closeFile(res.Content)
+
+				return result, err
+			}
+
+			s.closeFile(res.Content)
+
+			archiveFiles = append(archiveFiles, archiver.ArchiveFile{
+				PathOnDisk: file.Name(),
+				Filename:   res.FullPath,
+			})
+		}
+
+		archiveResult, err := archiver.Archive(ctx, resource.Name, archiveFiles)
+		if err != nil {
+			return result, err
+		}
+
+		result = DownloadResult{
+			Content: archiveResult.Content,
+			Name:    archiveResult.Name,
+			Size:    archiveResult.Size,
+			Type:    "application/zip",
+			Remove: func() {
+				if err = os.Remove(archiveResult.Path); err != nil {
+					s.log.Warn("failed to remove archive file", zap.Error(err))
+				}
+			},
+		}
+	} else {
+		getResult, err := s.client.Get(ctx, resource)
+		if err != nil {
+			return result, err
+		}
+
+		result = DownloadResult{
+			Content: getResult.Content,
+			Name:    getResult.Name,
+			Size:    getResult.Size,
+			Type:    getResult.ContentType,
+		}
 	}
 
-	return DownloadResult{
-		Content: result.Content,
-		Name:    result.Name,
-		Size:    result.Size,
-		Type:    result.ContentType,
-	}, nil
+	return result, nil
+}
+
+func (s *resourceService) closeFile(file io.Closer) {
+	if err := file.Close(); err != nil {
+		s.log.Warn("failed to close file", zap.Error(err))
+	}
+}
+
+func (s *resourceService) removeFile(filename string) {
+	if err := os.Remove(filename); err != nil {
+		s.log.Warn("failed to remove file",
+			zap.String("filename", filename), zap.Error(err))
+	}
 }

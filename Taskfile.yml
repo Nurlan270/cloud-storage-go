@@ -5,6 +5,10 @@ vars:
   GOOSE: "{{.PROJECT_BIN}}/goose"
   LINTER: "{{.PROJECT_BIN}}/golangci-lint"
 
+  TMP_DIR: "{{.ROOT_DIR}}/tmp"
+  ARCHIVE_DIR: "{{.TMP_DIR}}/archive"
+  ARCHIVE_FILES_DIR: "{{.ARCHIVE_DIR}}/files"
+
 dotenv:
   - .env
 
@@ -15,7 +19,17 @@ tasks:
     status:
       - test -d {{.PROJECT_BIN}}
     cmds:
-      - mkdir -p {{.PROJECT_BIN}}
+      - mkdir -p {{.TMP_DIR}} {{.ARCHIVE_DIR}} {{.ARCHIVE_FILES_DIR}}
+
+  tmp:init:
+    desc: Create tmp folder and its children folders if not already exists
+    silent: true
+    status:
+      - test -d {{.TMP_DIR}}
+      - test -d {{.ARCHIVE_DIR}}
+      - test -d {{.ARCHIVE_FILES_DIR}}
+    cmds:
+      - mkdir -p {{.TMP_DIR}} {{.ARCHIVE_DIR}} {{.ARCHIVE_FILES_DIR}}
 
   goose:install:
     desc: Install Goose binary
@@ -97,8 +111,9 @@ tasks:
     cmds:
       - '{{.LINTER}} run ./... --config .golangci.yml'
 
-  app:run:
-    desc: Build and run application
+  app:start:
+    desc: Build and start application
+    deps: [ tmp:init ]
     silent: true
     cmds:
       - docker compose up -d --build
@@ -109,14 +124,14 @@ tasks:
     silent: true
     cmds:
       - task: app:stop
-      - task: app:run
+      - task: app:start
 
   app:reboot:
     desc: Stop and start app again & remove all dedicated volumes
     silent: true
     cmds:
       - task: app:reset
-      - task: app:run
+      - task: app:start
 
   app:stop:
     desc: Stop application
@@ -132,6 +147,7 @@ tasks:
 
   app:deploy:
     desc: Build and run application on production
+    deps: [ tmp:init ]
     silent: true
     cmds:
       - "[ -f .env ] || mv .env.example .env"

@@ -14,11 +14,13 @@ linters:
   settings:
     errcheck:
       exclude-functions:
+        - (*os.File).Close
         - (io.Closer).Close
         - (net.Listener).Close
         - (*net/rpc.Client).Close
         - (github.com/jackc/pgx/v5.Tx).Rollback
         - (github.com/jackc/pgx/v5.BatchResults).Close
+        - (*github.com/minio/minio-go/v7.Object).Close
       verbose: true
     gocyclo:
       min-complexity: 12

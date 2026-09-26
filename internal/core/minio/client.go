@@ -16,6 +16,7 @@ import (
 
 type Client interface {
 	Get(ctx context.Context, resource models.Resource) (GetResult, error)
+	GetAll(ctx context.Context, resources []models.Resource) ([]GetResult, error)
 	Put(ctx context.Context, opts PutOptions) error
 	PutAll(ctx context.Context, entities []PutAllEntities) error
 	Delete(ctx context.Context, resource models.Resource) error
@@ -50,6 +51,7 @@ type GetResult struct {
 	Content     io.ReadCloser
 	Name        string
 	Size        int64
+	FullPath    string
 	ContentType string
 }
 
@@ -73,9 +75,47 @@ func (c *client) Get(ctx context.Context, resource models.Resource) (GetResult, 
 	return GetResult{
 		Content:     content,
 		Name:        resource.Name,
+		FullPath:    resource.FullPath(),
 		Size:        info.Size,
 		ContentType: info.ContentType,
 	}, nil
+}
+
+func (c *client) GetAll(ctx context.Context, resources []models.Resource) ([]GetResult, error) {
+	result := make([]GetResult, 0, len(resources))
+
+	for _, resource := range resources {
+		//	Skip all directories because this is not an actual object in MinIO
+		if resource.IsDir() {
+			continue
+		}
+
+		content, err := c.GetObject(ctx, Bucket, resource.ObjectKey(), minio.GetObjectOptions{})
+		if err != nil {
+			c.log.Error("failed to get object",
+				zap.Any("object", resource), zap.Error(err))
+
+			return nil, err
+		}
+
+		// Force MinIO to actually check that the object exists.
+		if _, err = content.Stat(); err != nil {
+			c.log.Error("failed to stat object",
+				zap.String("object_key", resource.ObjectKey()), zap.Error(err))
+
+			content.Close()
+
+			return nil, err
+		}
+
+		result = append(result, GetResult{
+			Content:  content,
+			Name:     resource.Name,
+			FullPath: resource.FullPath(),
+		})
+	}
+
+	return result, nil
 }
 
 type PutOptions struct {
@@ -103,6 +143,7 @@ func (c *client) Put(ctx context.Context, opts PutOptions) error {
 	return nil
 }
 
+// fixme: PutAllEntities should be named PutEntity
 type PutAllEntities struct {
 	Resource models.Resource
 	Object   *multipart.FileHeader

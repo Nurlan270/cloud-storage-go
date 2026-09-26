@@ -188,8 +188,15 @@ func (h *resourceHandler) DownloadResource(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	//	Close opened file
-	defer result.Content.Close()
+	defer func() {
+		//	Close opened file
+		result.Content.Close()
+
+		//	Remove archive file if exists
+		if result.Remove != nil {
+			result.Remove()
+		}
+	}()
 
 	//	Set headers
 	w.Header().Set("Content-Type", result.Type)
