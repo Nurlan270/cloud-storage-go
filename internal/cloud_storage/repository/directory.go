@@ -29,8 +29,7 @@ type directoryRepository struct {
 }
 
 func NewDirectoryRepository(pool *pgxpool.Pool) DirectoryRepository {
-	log := logger.Get().With(
-		zap.String("src", "directory repository"))
+	log := logger.Get().SetSrc("directory repository")
 
 	return &directoryRepository{
 		pool: pool,

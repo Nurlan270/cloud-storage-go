@@ -12,6 +12,7 @@ import (
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/archiver"
 	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
+	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/minio"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
@@ -22,14 +23,16 @@ type ResourceService interface {
 	Upload(ctx context.Context, req request.UploadResource) (response.ResourceInfoList, error)
 	GetInfo(ctx context.Context, req request.GetResourceInfo) (response.ResourceInfo, error)
 	Search(ctx context.Context, req request.SearchResource) (response.ResourceInfoList, error)
-	Delete(ctx context.Context, req request.DeleteResource) error
+	Move(ctx context.Context, req request.MoveResource) (response.ResourceInfo, error)
 	Download(ctx context.Context, req request.DownloadResource) (DownloadResult, error)
+	Delete(ctx context.Context, req request.DeleteResource) error
 }
 
 type ResourceRepository interface {
 	BatchCreate(ctx context.Context, resources []models.Resource) error
 	Get(ctx context.Context, resource *models.Resource) (*models.Resource, error)
-	Update(ctx context.Context, old *models.Resource, new *models.Resource) (*models.Resource, error)
+	Update(ctx context.Context, old *models.Resource, new *models.Resource) (models.Resource, error)
+	BatchUpdate(ctx context.Context, old *models.Resource, new *models.Resource) ([]models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]*models.Resource, error)
 	Delete(ctx context.Context, resource *models.Resource) error
 }
@@ -39,6 +42,13 @@ type MinioClient interface {
 	GetAll(ctx context.Context, resources []models.Resource) ([]minio.GetResult, error)
 	Put(ctx context.Context, opts minio.PutOptions) error
 	PutAll(ctx context.Context, entities []minio.PutAllEntities) error
+	Update(ctx context.Context, old models.Resource, new models.Resource) error
+	UpdateAll(
+		ctx context.Context,
+		old models.Resource,
+		new models.Resource,
+		resources []models.Resource,
+	) error
 	Delete(ctx context.Context, resource models.Resource) error
 	DeleteAll(ctx context.Context, resources []models.Resource) error
 }
@@ -58,8 +68,7 @@ func NewResourceService(
 	resourceRepo ResourceRepository,
 	dirRepo DirectoryRepository,
 ) ResourceService {
-	log := logger.Get().With(
-		zap.String("src", "resource service"))
+	log := logger.Get().SetSrc("resource service")
 
 	return &resourceService{
 		client:       client,
@@ -199,7 +208,6 @@ func (s *resourceService) Search(
 	return info, nil
 }
 
-//nolint:gocyclo
 func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource) error {
 	user := corectx.UserFromContext(ctx)
 
@@ -370,6 +378,88 @@ func (s *resourceService) Download(
 	}
 
 	return result, nil
+}
+
+func (s *resourceService) Move(ctx context.Context, req request.MoveResource) (response.ResourceInfo, error) {
+	user := corectx.UserFromContext(ctx)
+
+	//	Old resource data
+	oldPath, oldName := splitPath(req.From)
+	oldResourceType := getResourceType(req.From)
+
+	oldResource := models.Resource{
+		UserID: user.ID,
+		Path:   oldPath,
+		Name:   oldName,
+		Type:   oldResourceType,
+	}
+
+	//	New resource data
+	newPath, newName := splitPath(req.To)
+	newResourceType := getResourceType(req.To)
+
+	newResource := models.Resource{
+		UserID: user.ID,
+		Path:   newPath,
+		Name:   newName,
+		Type:   newResourceType,
+	}
+
+	//	Check whether old & new resources type is identical
+	if oldResource.Type != newResource.Type {
+		return response.ResourceInfo{}, errs.ErrResourceNonIdenticalTypes
+	}
+
+	//	Start TX
+	tx, txErr := s.pool.Begin(ctx)
+	if txErr != nil {
+		s.log.Error("tx: failed to start", zap.Error(txErr))
+		return response.ResourceInfo{}, txErr
+	}
+	defer tx.Rollback(ctx)
+
+	//	Put TX into ctx
+	ctx = corectx.NewTxContext(ctx, tx)
+
+	if newResource.IsDir() {
+		//	Update all directory content in DB
+		content, err := s.resourceRepo.BatchUpdate(ctx, &oldResource, &newResource)
+		if err != nil {
+			return response.ResourceInfo{}, err
+		}
+
+		s.log.Debug("upd",
+			zap.Any("content", content))
+
+		//	Update all directory content in bucket
+		if err = s.client.UpdateAll(ctx, oldResource, newResource, content); err != nil {
+			return response.ResourceInfo{}, err
+		}
+	} else {
+		//	Update resource in DB
+		_, err := s.resourceRepo.Update(ctx, &oldResource, &newResource)
+		if err != nil {
+			return response.ResourceInfo{}, err
+		}
+
+		//	Update resource in bucket
+		if err = s.client.Update(ctx, oldResource, newResource); err != nil {
+			return response.ResourceInfo{}, err
+		}
+	}
+
+	//	Commit TX
+	if err := tx.Commit(ctx); err != nil {
+		s.log.Error("tx: failed to commit", zap.Error(err))
+		return response.ResourceInfo{}, err
+	}
+
+	return response.ResourceInfo{
+		Path: newResource.Path,
+		Name: newResource.Name,
+		Size: newResource.Size,
+		Type: newResource.Type,
+	}, nil
 }
 
 func (s *resourceService) closeFile(file io.Closer) {

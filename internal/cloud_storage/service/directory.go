@@ -39,8 +39,7 @@ func NewDirectoryService(
 	pool *pgxpool.Pool,
 	dirRepo DirectoryRepository,
 ) DirectoryService {
-	log := logger.Get().With(
-		zap.String("src", "directory service"))
+	log := logger.Get().SetSrc("directory service")
 
 	return &directoryService{
 		client:  client,

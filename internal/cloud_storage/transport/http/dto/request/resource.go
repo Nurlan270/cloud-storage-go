@@ -15,6 +15,11 @@ type DeleteResource struct {
 	Path string `validate:"required,path"`
 }
 
+type MoveResource struct {
+	From string `validate:"required,path"`
+	To   string `validate:"required,path"`
+}
+
 type DownloadResource struct {
 	Path string `validate:"required,path"`
 }

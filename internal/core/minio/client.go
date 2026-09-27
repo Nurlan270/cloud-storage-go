@@ -19,6 +19,13 @@ type Client interface {
 	GetAll(ctx context.Context, resources []models.Resource) ([]GetResult, error)
 	Put(ctx context.Context, opts PutOptions) error
 	PutAll(ctx context.Context, entities []PutAllEntities) error
+	Update(ctx context.Context, old models.Resource, new models.Resource) error
+	UpdateAll(
+		ctx context.Context,
+		old models.Resource,
+		new models.Resource,
+		resources []models.Resource,
+	) error
 	Delete(ctx context.Context, resource models.Resource) error
 	DeleteAll(ctx context.Context, resources []models.Resource) error
 }
@@ -35,8 +42,7 @@ func MustNew(conf Config) Client {
 		panic(fmt.Sprintf("minio client: %v", err))
 	}
 
-	log := logger.Get().With(
-		zap.String("src", "minio client"))
+	log := logger.Get().SetSrc("minio client")
 
 	return &client{
 		Client: c,
@@ -261,4 +267,79 @@ func (c *client) DeleteAll(ctx context.Context, resources []models.Resource) err
 	}
 
 	return ctx.Err()
+}
+
+func (c *client) Update(ctx context.Context, old models.Resource, new models.Resource) error {
+	src := minio.CopySrcOptions{
+		Bucket: Bucket,
+		Object: old.ObjectKey(),
+	}
+
+	dst := minio.CopyDestOptions{
+		Bucket: Bucket,
+		Object: new.ObjectKey(),
+	}
+
+	//	Copy old object to new destination
+	_, err := c.CopyObject(ctx, dst, src)
+	if err != nil {
+		c.log.Error("failed to copy object", zap.Error(err))
+		return err
+	}
+
+	//	Remove old object
+	if err = c.RemoveObject(ctx, Bucket, old.ObjectKey(), minio.RemoveObjectOptions{
+		ForceDelete: true,
+	}); err != nil {
+		c.log.Error("failed to remove old object", zap.Error(err))
+		return err
+	}
+
+	return nil
+}
+
+func (c *client) UpdateAll(
+	ctx context.Context,
+	old models.Resource,
+	new models.Resource,
+	resources []models.Resource,
+) error {
+	for _, resource := range resources {
+		if resource.IsDir() {
+			continue
+		}
+
+		oldKey := old.ObjectKey() + resource.Name
+		newKey := new.ObjectKey() + resource.Name
+
+		c.log.Debug("updating resource",
+			zap.Any("oldKey", oldKey), zap.Any("newKey", newKey))
+
+		src := minio.CopySrcOptions{
+			Bucket: Bucket,
+			Object: oldKey,
+		}
+
+		dst := minio.CopyDestOptions{
+			Bucket: Bucket,
+			Object: newKey,
+		}
+
+		//	Copy old object to new destination
+		_, err := c.CopyObject(ctx, dst, src)
+		if err != nil {
+			c.log.Error("failed to copy object", zap.Error(err))
+			return err
+		}
+
+		//	Remove old object
+		if err = c.RemoveObject(ctx, Bucket, oldKey, minio.RemoveObjectOptions{
+			ForceDelete: true,
+		}); err != nil {
+			c.log.Error("failed to remove old object", zap.Error(err))
+			return err
+		}
+	}
+
+	return nil
 }

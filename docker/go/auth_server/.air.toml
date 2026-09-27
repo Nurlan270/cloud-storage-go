@@ -2,8 +2,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/auth_server ./cmd/auth_server"
-  entrypoint = "tmp/auth_server"
+  cmd = "go build -o ./bin/auth_server ./cmd/auth_server"
+  entrypoint = "bin/auth_server"
   include_ext = ["go"]
   exclude_dir = ["tmp", "bin", "logs"]
   exclude_file = []

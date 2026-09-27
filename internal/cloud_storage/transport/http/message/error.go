@@ -5,8 +5,9 @@ var (
 
 	ErrUserAlreadyExists = "User with provided username already exists."
 
-	ErrResourceNotFound      = "Resource was not found."
-	ErrResourceAlreadyExists = "Resource already exists."
+	ErrResourceNotFound          = "Resource was not found."
+	ErrResourceAlreadyExists     = "Resource already exists."
+	ErrResourceNonIdenticalTypes = "New resource's type is not identical to old resource's type."
 
 	ErrDirectoryNotFound       = "Directory was not found."
 	ErrDirectoryAlreadyExists  = "Directory already exists."

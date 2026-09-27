@@ -12,8 +12,9 @@ var (
 
 	ErrSessionInvalid = errors.New("session invalid")
 
-	ErrResourceNotFound      = errors.New("resource not found")
-	ErrResourceAlreadyExists = errors.New("resource already exists")
+	ErrResourceNotFound          = errors.New("resource not found")
+	ErrResourceAlreadyExists     = errors.New("resource already exists")
+	ErrResourceNonIdenticalTypes = errors.New("resource types does not match")
 
 	ErrDirectoryNotFound       = errors.New("directory not found")
 	ErrDirectoryAlreadyExists  = errors.New("directory already exists")

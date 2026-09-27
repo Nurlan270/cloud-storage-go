@@ -125,6 +125,7 @@ func (a *App) registerRoutes() {
 			r.Get("/", resourceHandler.GetResourceInfo)
 			r.Post("/", resourceHandler.UploadResource)
 			r.Delete("/", resourceHandler.DeleteResource)
+			r.Post("/move", resourceHandler.MoveResource)
 			r.Get("/search", resourceHandler.SearchResource)
 			r.Get("/download", resourceHandler.DownloadResource)
 		})
@@ -146,7 +147,7 @@ func (a *App) registerRoutes() {
 }
 
 func (a *App) Run() error {
-	log := logger.Get()
+	log := logger.Get().SetSrc("application")
 	srv := a.di.HTTPServer()
 
 	serverErrCh := make(chan error, 1)

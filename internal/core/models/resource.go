@@ -25,6 +25,7 @@ func (r Resource) IsDir() bool {
 	return r.Type == TypeDir
 }
 
+// ObjectKey returns key of resource within bucket.
 func (r Resource) ObjectKey() string {
 	var rootDir = fmt.Sprintf("user-%d-files", r.UserID)
 
@@ -38,6 +39,7 @@ func (r Resource) ObjectKey() string {
 	return key
 }
 
+// FullPath returns full path to resource (Path + Name).
 func (r Resource) FullPath() string {
 	str := strings.TrimLeft(path.Join(r.Path, r.Name), "/")
 

@@ -2,8 +2,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/cloud_storage ./cmd/cloud_storage"
-  entrypoint = "tmp/cloud_storage"
+  cmd = "go build -o ./bin/cloud_storage ./cmd/cloud_storage"
+  entrypoint = "bin/cloud_storage"
   include_ext = ["go"]
   exclude_dir = ["tmp", "bin", "logs"]
   exclude_file = []

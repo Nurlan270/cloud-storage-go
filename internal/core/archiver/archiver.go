@@ -39,8 +39,7 @@ type ArchiveFile struct {
 
 // Archive archives all provided files under zip archive.
 func Archive(ctx context.Context, archiveName string, files []ArchiveFile) (ArchiveResult, error) {
-	log := logger.Get().With(
-		zap.String("src", "archiver"))
+	log := logger.Get().SetSrc("archiver")
 
 	filenames := make(map[string]string, len(files))
 	for _, file := range files {

@@ -56,6 +56,12 @@ func Get() *Logger {
 	return globalLogger
 }
 
+// SetSrc adds "src" context attribute with provided value
+// which points to where logger was invoked from.
+func (l *Logger) SetSrc(v string) *zap.Logger {
+	return l.With(zap.String("src", v))
+}
+
 func (l *Logger) Close() error {
 	if l == nil {
 		return nil

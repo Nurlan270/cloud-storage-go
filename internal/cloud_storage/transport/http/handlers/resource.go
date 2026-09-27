@@ -21,6 +21,7 @@ import (
 type ResourceHandler interface {
 	GetResourceInfo(w http.ResponseWriter, r *http.Request)
 	UploadResource(w http.ResponseWriter, r *http.Request)
+	MoveResource(w http.ResponseWriter, r *http.Request)
 	DeleteResource(w http.ResponseWriter, r *http.Request)
 	SearchResource(w http.ResponseWriter, r *http.Request)
 	DownloadResource(w http.ResponseWriter, r *http.Request)
@@ -210,4 +211,43 @@ func (h *resourceHandler) DownloadResource(w http.ResponseWriter, r *http.Reques
 		logger.Get().Error("download: failed to stream result content", zap.Error(err))
 		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
 	}
+}
+
+func (h *resourceHandler) MoveResource(w http.ResponseWriter, r *http.Request) {
+	//	Get data
+	req := request.MoveResource{
+		From: r.URL.Query().Get("from"),
+		To:   r.URL.Query().Get("to"),
+	}
+
+	//	Validate
+	if err := h.validate.Struct(req); err != nil {
+		h.rend.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	//	Move/rename
+	resource, err := h.resourceSvc.Move(r.Context(), req)
+
+	if errors.Is(err, errs.ErrResourceNonIdenticalTypes) {
+		h.rend.Error(w, http.StatusBadRequest, message.ErrResourceNonIdenticalTypes)
+		return
+	}
+
+	if errors.Is(err, errs.ErrResourceNotFound) {
+		h.rend.Error(w, http.StatusNotFound, message.ErrResourceNotFound)
+		return
+	}
+
+	if errors.Is(err, errs.ErrResourceAlreadyExists) {
+		h.rend.Error(w, http.StatusConflict, message.ErrResourceAlreadyExists)
+		return
+	}
+
+	if err != nil {
+		h.rend.Error(w, http.StatusInternalServerError, message.ErrInternalServer)
+		return
+	}
+
+	h.rend.JSON(w, http.StatusOK, resource)
 }

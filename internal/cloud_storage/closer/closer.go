@@ -54,9 +54,9 @@ func (c *closer) closeAll(ctx context.Context) error {
 			return
 		}
 
-		log := logger.Get()
+		log := logger.Get().SetSrc("closer")
 
-		log.Info("closer: started closing resources", zap.Int("count", len(funcs)))
+		log.Info("started closing resources", zap.Int("count", len(funcs)))
 
 		var errs []error
 
@@ -69,7 +69,7 @@ func (c *closer) closeAll(ctx context.Context) error {
 			f := funcs[i]
 			done := make(chan error, 1)
 
-			log.Info("closer: closing resource", zap.String("name", f.name))
+			log.Info("closing resource", zap.String("name", f.name))
 
 			go func() {
 				done <- f.fn()
@@ -85,10 +85,10 @@ func (c *closer) closeAll(ctx context.Context) error {
 
 			if err != nil {
 				errs = append(errs,
-					fmt.Errorf("closer: failed to close %q resource: %w", f.name, err),
+					fmt.Errorf("failed to close %q resource: %w", f.name, err),
 				)
 			} else {
-				log.Info("closer: resource closed", zap.String("name", f.name))
+				log.Info("resource closed", zap.String("name", f.name))
 			}
 
 			rCancel()
