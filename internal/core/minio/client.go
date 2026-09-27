@@ -312,9 +312,6 @@ func (c *client) UpdateAll(
 		oldKey := old.ObjectKey() + resource.Name
 		newKey := new.ObjectKey() + resource.Name
 
-		c.log.Debug("updating resource",
-			zap.Any("oldKey", oldKey), zap.Any("newKey", newKey))
-
 		src := minio.CopySrcOptions{
 			Bucket: Bucket,
 			Object: oldKey,
