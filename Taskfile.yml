@@ -116,6 +116,7 @@ tasks:
     deps: [ tmp:init ]
     silent: true
     cmds:
+      - "[ -f .env ] || mv .env.example .env"
       - docker compose up -d --build
       - task: goose:up
 
