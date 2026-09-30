@@ -12,7 +12,7 @@
 Склонируйте репозиторий и перейдите в него:
 
 ```
-git clone https://github.com/Nurlan270/cloud-storage-go.git &&
+git clone --recurse-submodules https://github.com/Nurlan270/cloud-storage-go.git &&
  cd ./cloud-storage-go
 ```
 
@@ -32,3 +32,6 @@ git clone https://github.com/Nurlan270/cloud-storage-go.git &&
     ```
     task app:deploy
     ```
+
+> [!NOTE]
+> Не забудьте добавить значения для переменных в `.env`.
