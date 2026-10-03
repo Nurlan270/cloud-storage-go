@@ -34,7 +34,7 @@ func getFullPath(resource *multipart.FileHeader, rootDir string) (string, error)
 
 // buildResourcesFromPath recursively loops throw all path elements
 // and creates models.Resource for each element.
-func buildResourcesFromPath(userID uint64, path string, size *int64) []models.Resource {
+func buildResourcesFromPath(userID uint64, path string, size int64) []models.Resource {
 	parts := strings.Split(strings.TrimSuffix(path, "/"), "/")
 
 	resources := make([]models.Resource, 0, len(parts))
@@ -85,14 +85,14 @@ func getResourceType(el string) models.ResourceType {
 	return models.TypeFile
 }
 
-// splitPath splits provided path returning path to element and last element.
-func splitPath(path string) (string, string) {
+// splitPath splits provided path into directory and file.
+func splitPath(path string) (dir string, file string) {
 	path = strings.Trim(path, "/")
 
-	dir, name := gopath.Split(path)
+	dir, file = gopath.Split(path)
 	if dir == "" {
 		dir = "/"
 	}
 
-	return dir, name
+	return dir, file
 }

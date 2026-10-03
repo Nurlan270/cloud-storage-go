@@ -11,6 +11,7 @@ import (
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
@@ -78,7 +79,7 @@ func (h *resourceHandler) UploadResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	h.rend.JSON(w, http.StatusCreated, list)
+	h.rend.JSON(w, http.StatusCreated, response.NewResourceInfoListFromModels(list))
 }
 
 func (h *resourceHandler) GetResourceInfo(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +107,7 @@ func (h *resourceHandler) GetResourceInfo(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	h.rend.JSON(w, http.StatusOK, info)
+	h.rend.JSON(w, http.StatusOK, response.NewResourceInfoFromModel(info))
 }
 
 func (h *resourceHandler) SearchResource(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +129,7 @@ func (h *resourceHandler) SearchResource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	h.rend.JSON(w, http.StatusOK, list)
+	h.rend.JSON(w, http.StatusOK, response.NewResourceInfoListFromModels(list))
 }
 
 func (h *resourceHandler) DeleteResource(w http.ResponseWriter, r *http.Request) {
@@ -249,5 +250,5 @@ func (h *resourceHandler) MoveResource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.rend.JSON(w, http.StatusOK, resource)
+	h.rend.JSON(w, http.StatusOK, response.NewResourceInfoFromModel(resource))
 }

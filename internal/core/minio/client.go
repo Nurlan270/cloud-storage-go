@@ -181,7 +181,7 @@ func (c *client) PutAll(ctx context.Context, entities []PutAllEntities) error {
 
 			obj := minio.SnowballObject{
 				Key:     entity.Resource.ObjectKey(),
-				Size:    *entity.Resource.Size,
+				Size:    entity.Resource.Size,
 				Content: file,
 				Close:   closeFileFn,
 			}

@@ -14,11 +14,11 @@ const (
 )
 
 type Resource struct {
-	UserID uint64       `json:"-"`
-	Path   string       `json:"path"`
-	Name   string       `json:"name"`
-	Size   *int64       `json:"size,omitempty"`
-	Type   ResourceType `json:"type"`
+	UserID uint64
+	Path   string
+	Name   string
+	Size   int64
+	Type   ResourceType
 }
 
 func (r Resource) IsDir() bool {

@@ -86,7 +86,7 @@ func (r *directoryRepository) GetAll(
 		}
 	}
 
-	resources := make([]models.Resource, 0)
+	resources := make([]models.Resource, 0, rows.CommandTag().RowsAffected())
 
 	for rows.Next() {
 		var resource models.Resource
@@ -128,9 +128,9 @@ func (r *directoryRepository) Create(
 	); err != nil {
 		if errIs(err, pgerrcode.UniqueViolation) {
 			return res, errs.ErrDirectoryAlreadyExists
-		} else {
-			r.log.Error("failed to create", zap.Error(err))
 		}
+
+		r.log.Error("failed to create", zap.Error(err))
 
 		return res, err
 	}

@@ -7,7 +7,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
-	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	corectx "github.com/Nurlan270/cloud-storage-go/internal/core/context"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
@@ -16,7 +15,7 @@ import (
 )
 
 type DirectoryService interface {
-	Create(ctx context.Context, req request.CreateDirectory) (response.ResourceInfo, error)
+	Create(ctx context.Context, req request.CreateDirectory) (models.Resource, error)
 	GetContent(ctx context.Context, req request.GetDirectoryContent) ([]models.Resource, error)
 }
 
@@ -52,12 +51,12 @@ func NewDirectoryService(
 func (s *directoryService) Create(
 	ctx context.Context,
 	req request.CreateDirectory,
-) (response.ResourceInfo, error) {
+) (models.Resource, error) {
 	//	Start TX
 	tx, txErr := s.pool.Begin(ctx)
 	if txErr != nil {
 		s.log.Error("tx: failed to start", zap.Error(txErr))
-		return response.ResourceInfo{}, txErr
+		return models.Resource{}, txErr
 	}
 	defer tx.Rollback(ctx)
 
@@ -83,36 +82,35 @@ func (s *directoryService) Create(
 
 	//	Check whether parent directory exists
 	if exists, err := s.dirRepo.Exists(ctx, parentDir); err != nil {
-		return response.ResourceInfo{}, err
+		return models.Resource{}, err
 	} else if !exists {
-		return response.ResourceInfo{}, errs.ErrParentDirectoryNotFound
+		return models.Resource{}, errs.ErrParentDirectoryNotFound
 	}
 
 	//	Put into DB
 	res, err := s.dirRepo.Create(ctx, dir)
 	if err != nil {
-		return response.ResourceInfo{}, err
+		return models.Resource{}, err
 	}
 
 	putOpts := minio.PutOptions{
 		Reader:      nil,
 		Key:         dir.ObjectKey(),
-		Size:        0,
 		ContentType: "application/octet-stream",
 	}
 
 	//	Put into Bucket
 	if err = s.client.Put(ctx, putOpts); err != nil {
-		return response.ResourceInfo{}, err
+		return models.Resource{}, err
 	}
 
 	//	Commit TX
 	if err = tx.Commit(ctx); err != nil {
 		s.log.Error("tx: failed to commit", zap.Error(err))
-		return response.ResourceInfo{}, err
+		return models.Resource{}, err
 	}
 
-	return response.ResourceInfo{
+	return models.Resource{
 		Path: res.Path,
 		Name: res.Name,
 		Type: res.Type,
@@ -126,7 +124,6 @@ func (s *directoryService) GetContent(
 	user := corectx.UserFromContext(ctx)
 
 	path, name := splitPath(req.Path)
-
 	dir := models.Resource{
 		UserID: user.ID,
 		Path:   path,

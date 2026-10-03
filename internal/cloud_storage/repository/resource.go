@@ -17,11 +17,11 @@ import (
 
 type ResourceRepository interface {
 	BatchCreate(ctx context.Context, resources []models.Resource) error
-	Get(ctx context.Context, resource *models.Resource) (*models.Resource, error)
-	Update(ctx context.Context, old *models.Resource, new *models.Resource) (models.Resource, error)
-	BatchUpdate(ctx context.Context, old *models.Resource, new *models.Resource) ([]models.Resource, error)
-	Search(ctx context.Context, userID uint64, query string) ([]*models.Resource, error)
-	Delete(ctx context.Context, resource *models.Resource) error
+	Get(ctx context.Context, resource models.Resource) (models.Resource, error)
+	Update(ctx context.Context, old models.Resource, new models.Resource) (models.Resource, error)
+	BatchUpdate(ctx context.Context, old models.Resource, new models.Resource) ([]models.Resource, error)
+	Search(ctx context.Context, userID uint64, query string) ([]models.Resource, error)
+	Delete(ctx context.Context, resource models.Resource) error
 }
 
 type resourceRepository struct {
@@ -81,14 +81,14 @@ func (r *resourceRepository) BatchCreate(
 	return nil
 }
 
-func (r *resourceRepository) Get(ctx context.Context, resource *models.Resource) (*models.Resource, error) {
+func (r *resourceRepository) Get(ctx context.Context, resource models.Resource) (models.Resource, error) {
 	const q = `
 		SELECT user_id, path, name, size, type
 		FROM resources
 		WHERE user_id = $1 AND type = $2 AND path = $3 AND name = $4
 	`
 
-	res := &models.Resource{}
+	res := models.Resource{}
 	if err := r.pool.QueryRow(
 		ctx, q,
 		resource.UserID, resource.Type, resource.Path, resource.Name,
@@ -96,12 +96,12 @@ func (r *resourceRepository) Get(ctx context.Context, resource *models.Resource)
 		&res.UserID, &res.Path, &res.Name, &res.Size, &res.Type,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, errs.ErrResourceNotFound
+			return res, errs.ErrResourceNotFound
 		}
 
 		r.log.Error("failed to get", zap.Error(err))
 
-		return nil, err
+		return res, err
 	}
 
 	return res, nil
@@ -111,7 +111,7 @@ func (r *resourceRepository) Search(
 	ctx context.Context,
 	userID uint64,
 	query string,
-) ([]*models.Resource, error) {
+) ([]models.Resource, error) {
 	const q = `
 		SELECT user_id, path, name, size, type
 		FROM resources
@@ -125,10 +125,10 @@ func (r *resourceRepository) Search(
 		return nil, err
 	}
 
-	var resources []*models.Resource
+	var resources []models.Resource
 
 	for rows.Next() {
-		res := &models.Resource{}
+		res := models.Resource{}
 
 		if err = rows.Scan(&res.UserID, &res.Path, &res.Name, &res.Size, &res.Type); err != nil {
 			r.log.Error("failed to search", zap.Error(err))
@@ -142,7 +142,7 @@ func (r *resourceRepository) Search(
 	return resources, nil
 }
 
-func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resource) error {
+func (r *resourceRepository) Delete(ctx context.Context, resource models.Resource) error {
 	const (
 		qSingleDelete = `
 			DELETE FROM resources
@@ -199,8 +199,8 @@ func (r *resourceRepository) Delete(ctx context.Context, resource *models.Resour
 
 func (r *resourceRepository) Update(
 	ctx context.Context,
-	old *models.Resource,
-	new *models.Resource,
+	old models.Resource,
+	new models.Resource,
 ) (models.Resource, error) {
 	const q = `
 		UPDATE resources
@@ -237,8 +237,8 @@ func (r *resourceRepository) Update(
 
 func (r *resourceRepository) BatchUpdate(
 	ctx context.Context,
-	old *models.Resource,
-	new *models.Resource,
+	old models.Resource,
+	new models.Resource,
 ) ([]models.Resource, error) {
 	const (
 		qSelectOldResourceContent = `
@@ -270,7 +270,7 @@ func (r *resourceRepository) BatchUpdate(
 	}
 
 	//	Get old resource's content
-	content := make([]models.Resource, rows.CommandTag().RowsAffected())
+	content := make([]models.Resource, 0, rows.CommandTag().RowsAffected())
 	for rows.Next() {
 		res := models.Resource{}
 		if err = rows.Scan(&res.UserID, &res.Path, &res.Name, &res.Size, &res.Type); err != nil {

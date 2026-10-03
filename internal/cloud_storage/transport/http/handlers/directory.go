@@ -6,6 +6,7 @@ import (
 
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/service"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/request"
+	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/dto/response"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/message"
 	"github.com/Nurlan270/cloud-storage-go/internal/cloud_storage/transport/http/render"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
@@ -65,7 +66,7 @@ func (h *directoryHandler) CreateDirectory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.rend.JSON(w, http.StatusCreated, info)
+	h.rend.JSON(w, http.StatusCreated, response.NewResourceInfoFromModel(info))
 }
 
 func (h *directoryHandler) GetDirectoryContent(w http.ResponseWriter, r *http.Request) {
@@ -93,5 +94,5 @@ func (h *directoryHandler) GetDirectoryContent(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	h.rend.JSON(w, http.StatusOK, list)
+	h.rend.JSON(w, http.StatusOK, response.NewResourceInfoListFromModels(list))
 }
