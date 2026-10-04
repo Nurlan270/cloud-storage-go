@@ -32,11 +32,16 @@ type authService struct {
 
 	//	Used only to reconnect client
 	reconnMu sync.Mutex
+
+	log *zap.Logger
 }
 
 func NewAuthService(validate *validator.Validate) AuthService {
+	log := logger.Get().SetSrc("auth service")
+
 	return &authService{
 		validate: validate,
+		log:      log,
 	}
 }
 
@@ -52,7 +57,7 @@ func (s *authService) RegisterUser(req dto.RegisterUserRequest) (rpcdto.Register
 	if err := s.Call("Register", req, &resp); err != nil {
 		if !errs.RPCErrorIs(err, errs.ErrUserAlreadyExists) {
 			//	If error is not ErrUserAlreadyExists then log error
-			logger.Get().Error("rpc: failed to call AuthService.Register", zap.Error(err))
+			s.log.Error("failed to call Register", zap.Error(err))
 		}
 
 		return resp, err
@@ -73,7 +78,7 @@ func (s *authService) LoginUser(req dto.LoginUserRequest) (rpcdto.LoginUserRespo
 	if err := s.Call("Login", req, &resp); err != nil {
 		if !errs.RPCErrorIs(err, errs.ErrInvalidCredentials) {
 			//	If error is not ErrInvalidCredentials then log error
-			logger.Get().Error("rpc: failed to call AuthService.Login", zap.Error(err))
+			s.log.Error("failed to call Login", zap.Error(err))
 		}
 
 		return resp, err
@@ -87,7 +92,7 @@ func (s *authService) LogoutUser(req dto.LogoutUserRequest) (rpcdto.LogoutUserRe
 
 	//	Call RPC
 	if err := s.Call("Logout", req, &resp); err != nil {
-		logger.Get().Error("rpc: failed to call AuthService.Logout", zap.Error(err))
+		s.log.Error("failed to call Logout", zap.Error(err))
 
 		return resp, err
 	}
@@ -101,7 +106,7 @@ func (s *authService) GetUserFromSID(sid string) (rpcdto.GetUserFromSIDResponse,
 	//	Call RPC
 	if err := s.Call("GetUserFromSID", sid, &resp); err != nil {
 		if !errs.RPCErrorIs(err, errs.ErrSessionInvalid) && !errs.RPCErrorIs(err, errs.ErrUserNotFound) {
-			logger.Get().Error("rpc: failed to call AuthService.GetUserFromSID", zap.Error(err))
+			s.log.Error("failed to call GetUserFromSID", zap.Error(err))
 		}
 
 		return resp, err
