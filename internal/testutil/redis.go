@@ -11,8 +11,8 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/testcontainers/testcontainers-go"
 
-	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil/closer"
 	coreredis "github.com/Nurlan270/cloud-storage-go/internal/core/redis"
+	"github.com/Nurlan270/cloud-storage-go/internal/testutil/closer"
 
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 )
@@ -46,7 +46,7 @@ func NewTestRedis(ctx context.Context, conf coreredis.Config) (*redis.Client, er
 		return nil, err
 	}
 
-	closer.Add("Test Redis", func() error {
+	closer.Add("Redis", func() error {
 		return errors.Join(
 			rdb.Close(),
 			terminateTestRedis(rc),

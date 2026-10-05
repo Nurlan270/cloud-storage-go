@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/repository"
-	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil"
-	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil/closer"
 	errs "github.com/Nurlan270/cloud-storage-go/internal/core/errors"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
 	httpdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/http/dto"
 	rpcdto "github.com/Nurlan270/cloud-storage-go/internal/core/transport/rpc/dto"
+	"github.com/Nurlan270/cloud-storage-go/internal/testutil"
+	"github.com/Nurlan270/cloud-storage-go/internal/testutil/closer"
 )
 
 var (
@@ -32,12 +32,12 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	conf := testutil.NewTestConfig()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	var err error
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	conf := testutil.NewTestConfig()
 
 	//	Setup test database
 	db, err = testutil.NewTestDB(ctx, &conf.DB)

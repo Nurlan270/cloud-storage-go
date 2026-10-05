@@ -6,19 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"path/filepath"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/Nurlan270/cloud-storage-go/internal/auth_server/testutil/closer"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/database"
+	"github.com/Nurlan270/cloud-storage-go/internal/testutil/closer"
 )
-
-var migrationsDir = filepath.Join("..", "..", "..", "core", "database", "migrations")
 
 func NewTestDB(ctx context.Context, conf *database.Config) (*sql.DB, error) {
 	pgc, err := postgres.Run(ctx,
@@ -46,18 +42,13 @@ func NewTestDB(ctx context.Context, conf *database.Config) (*sql.DB, error) {
 		return nil, fmt.Errorf("db: failed to connect: %s", err)
 	}
 
-	closer.Add("Test Database", func() error {
+	closer.Add("Database", func() error {
 		dbErr := db.Close()
 		return errors.Join(dbErr, terminateTestDB(pgc))
 	})
 
-	//	Setup Goose
-	if err = goose.SetDialect("postgres"); err != nil {
-		return nil, fmt.Errorf("goose: failed to set dialect: %s", err)
-	}
-
 	//	Run migrations
-	if err = goose.Up(db, migrationsDir); err != nil {
+	if err = database.RunMigrations(db); err != nil {
 		return nil, fmt.Errorf("goose: failed to run migrations: %s", err)
 	}
 
@@ -70,7 +61,7 @@ func NewTestDBPool(conf database.Config) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("pool: failed to connect: %s", err)
 	}
 
-	closer.Add("Test Pool", func() error {
+	closer.Add("DB Pool", func() error {
 		pool.Close()
 		return nil
 	})
@@ -81,13 +72,11 @@ func NewTestDBPool(conf database.Config) (*pgxpool.Pool, error) {
 func CleanupDatabase(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	err := goose.Reset(db, migrationsDir)
-	if err != nil {
+	if err := database.ResetMigrations(db); err != nil {
 		t.Fatalf("db: failed to reset migrations: %s", err)
 	}
 
-	err = goose.Up(db, migrationsDir)
-	if err != nil {
+	if err := database.RunMigrations(db); err != nil {
 		t.Fatalf("goose: failed to run migrations: %s", err)
 	}
 }

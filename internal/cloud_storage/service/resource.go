@@ -131,7 +131,7 @@ func (s *resourceService) Upload(
 
 	//	Put resources into bucket
 	if err := s.client.PutAll(ctx, uploadEntities); err != nil {
-		return []models.Resource{}, err
+		return nil, err
 	}
 
 	//	Commit TX
