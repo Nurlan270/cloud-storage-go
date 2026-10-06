@@ -20,6 +20,13 @@ type DirectoryRepository interface {
 	GetAll(ctx context.Context, dir models.Resource, recursive bool) ([]models.Resource, error)
 	Create(ctx context.Context, dir models.Resource) (models.Resource, error)
 	Exists(ctx context.Context, dir models.Resource) (bool, error)
+	Delete(ctx context.Context, dir models.Resource) error
+	BatchUpdate(
+		ctx context.Context,
+		old models.Resource,
+		new models.Resource,
+		content []models.Resource,
+	) error
 }
 
 type directoryRepository struct {
@@ -92,12 +99,10 @@ func (r *directoryRepository) GetAll(
 		var resource models.Resource
 
 		if err = rows.Scan(
-			&resource.UserID,
-			&resource.Path,
-			&resource.Name,
-			&resource.Size,
-			&resource.Type,
+			&resource.UserID, &resource.Path, &resource.Name, &resource.Size, &resource.Type,
 		); err != nil {
+			r.log.Error("failed to scan row", zap.Error(err))
+
 			return nil, err
 		}
 
@@ -112,8 +117,8 @@ func (r *directoryRepository) Create(
 	dir models.Resource,
 ) (models.Resource, error) {
 	const q = `
-		INSERT INTO resources (user_id, path, name, type)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO resources (user_id, path, name, size, type)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING user_id, path, name, type
 	`
 
@@ -122,7 +127,7 @@ func (r *directoryRepository) Create(
 	res := models.Resource{}
 	if err := tx.QueryRow(
 		ctx, q,
-		dir.UserID, dir.Path, dir.Name, models.TypeDir,
+		dir.UserID, dir.Path, dir.Name, 0, models.TypeDir,
 	).Scan(
 		&res.UserID, &res.Path, &res.Name, &res.Type,
 	); err != nil {
@@ -161,6 +166,101 @@ func (r *directoryRepository) Exists(ctx context.Context, dir models.Resource) (
 	}
 
 	return exists, nil
+}
+
+func (r *directoryRepository) Delete(ctx context.Context, dir models.Resource) error {
+	const (
+		qDeleteContent = `
+			DELETE FROM resources
+			WHERE user_id = $1 AND path LIKE $2
+		`
+
+		qDeleteDir = `
+			DELETE FROM resources
+			WHERE user_id = $1 AND type = $2 AND path = $3 AND name = $4
+		`
+	)
+
+	tx := corectx.TxFromContext(ctx)
+
+	//	Remove directory content
+	q1, err := tx.Exec(ctx, qDeleteContent, dir.UserID, dir.FullPath()+"%")
+	if err != nil {
+		r.log.Error("failed to delete dir content", zap.Error(err))
+
+		return err
+	}
+
+	//	Remove directory itself
+	q2, err := tx.Exec(ctx, qDeleteDir, dir.UserID, dir.Type, dir.Path, dir.Name)
+	if err != nil {
+		r.log.Error("failed to delete dir", zap.Error(err))
+
+		return err
+	}
+
+	if (q1.RowsAffected() + q2.RowsAffected()) <= 0 {
+		return errs.ErrDirectoryNotFound
+	}
+
+	return nil
+}
+
+func (r *directoryRepository) BatchUpdate(
+	ctx context.Context,
+	old models.Resource,
+	new models.Resource,
+	content []models.Resource,
+) error {
+	const (
+		qUpdateOldResourceContent = `
+			UPDATE resources
+			SET path = $1
+			WHERE user_id = $2 AND type = $3 AND path = $4 AND name = $5
+			RETURNING user_id, path, name, size, type
+		`
+
+		qUpdateOldResource = `
+			UPDATE resources
+			SET name = $1, path = $2
+			WHERE user_id = $3 AND type = $4 AND path = $5 AND name = $6
+		`
+	)
+
+	tx := corectx.TxFromContext(ctx)
+
+	batch := &pgx.Batch{}
+
+	//	Update old resource with new one
+	batch.Queue(qUpdateOldResource,
+		new.Name, new.Path,
+		old.UserID, old.Type, old.Path, old.Name,
+	)
+
+	//	Update old resource's content with new one
+	for _, oldContent := range content {
+		batch.Queue(qUpdateOldResourceContent,
+			new.FullPath(), // new content's path
+			oldContent.UserID, oldContent.Type, oldContent.Path, oldContent.Name,
+		)
+	}
+
+	br := tx.SendBatch(ctx, batch)
+	defer br.Close()
+
+	for range batch.QueuedQueries {
+		if _, err := br.Exec(); err != nil {
+			if errIs(err, pgerrcode.UniqueViolation) {
+				return errs.ErrResourceAlreadyExists
+			}
+
+			r.log.Error("failed to batch update", zap.Error(err))
+
+			return err
+		}
+	}
+
+	return nil
 }
 
 func errIs(err error, errCode string) bool {

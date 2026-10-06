@@ -23,6 +23,13 @@ type DirectoryRepository interface {
 	GetAll(ctx context.Context, dir models.Resource, recursive bool) ([]models.Resource, error)
 	Create(ctx context.Context, dir models.Resource) (models.Resource, error)
 	Exists(ctx context.Context, dir models.Resource) (bool, error)
+	Delete(ctx context.Context, dir models.Resource) error
+	BatchUpdate(
+		ctx context.Context,
+		old models.Resource,
+		new models.Resource,
+		content []models.Resource,
+	) error
 }
 
 type directoryService struct {
@@ -93,14 +100,13 @@ func (s *directoryService) Create(
 		return models.Resource{}, err
 	}
 
-	putOpts := minio.PutOptions{
-		Reader:      nil,
-		Key:         dir.ObjectKey(),
-		ContentType: "application/octet-stream",
+	putEntity := minio.PutEntity{
+		Resource: res,
+		Object:   nil,
 	}
 
 	//	Put into Bucket
-	if err = s.client.Put(ctx, putOpts); err != nil {
+	if err = s.client.Put(ctx, putEntity); err != nil {
 		return models.Resource{}, err
 	}
 

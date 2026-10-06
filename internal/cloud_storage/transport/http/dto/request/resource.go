@@ -3,8 +3,8 @@ package request
 import "mime/multipart"
 
 type UploadResource struct {
-	Object []*multipart.FileHeader `validate:"required,min=1"`
-	Path   string                  `validate:"path"`
+	Objects []*multipart.FileHeader `validate:"required,min=1"`
+	Path    string                  `validate:"path"`
 }
 
 type GetResourceInfo struct {

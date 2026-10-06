@@ -17,8 +17,8 @@ import (
 type Client interface {
 	Get(ctx context.Context, resource models.Resource) (GetResult, error)
 	GetAll(ctx context.Context, resources []models.Resource) ([]GetResult, error)
-	Put(ctx context.Context, opts PutOptions) error
-	PutAll(ctx context.Context, entities []PutAllEntities) error
+	Put(ctx context.Context, entity PutEntity) error
+	PutAll(ctx context.Context, entities []PutEntity) error
 	Update(ctx context.Context, old models.Resource, new models.Resource) error
 	UpdateAll(
 		ctx context.Context,
@@ -124,22 +124,31 @@ func (c *client) GetAll(ctx context.Context, resources []models.Resource) ([]Get
 	return result, nil
 }
 
-type PutOptions struct {
-	Reader      io.Reader
-	Key         string
-	Size        int64
-	ContentType string
+type PutEntity struct {
+	Resource models.Resource
+	Object   *multipart.FileHeader
 }
 
-func (c *client) Put(ctx context.Context, opts PutOptions) error {
-	minioOpts := minio.PutObjectOptions{
-		ContentType: opts.ContentType,
+func (c *client) Put(ctx context.Context, entity PutEntity) error {
+	opts := minio.PutObjectOptions{
+		ContentType: "application/octet-stream",
+	}
+
+	var content io.ReadCloser
+
+	if !entity.Resource.IsDir() {
+		content, err := entity.Object.Open()
+		if err != nil {
+			c.log.Error("failed to open object", zap.Any("object", entity.Object), zap.Error(err))
+			return err
+		}
+		defer content.Close()
 	}
 
 	if _, err := c.PutObject(
 		ctx, Bucket,
-		opts.Key, opts.Reader, opts.Size,
-		minioOpts,
+		entity.Resource.ObjectKey(), content, entity.Resource.Size,
+		opts,
 	); err != nil {
 		c.log.Error("failed to Put", zap.Error(err))
 
@@ -149,13 +158,7 @@ func (c *client) Put(ctx context.Context, opts PutOptions) error {
 	return nil
 }
 
-// fixme: PutAllEntities should be named PutEntity
-type PutAllEntities struct {
-	Resource models.Resource
-	Object   *multipart.FileHeader
-}
-
-func (c *client) PutAll(ctx context.Context, entities []PutAllEntities) error {
+func (c *client) PutAll(ctx context.Context, entities []PutEntity) error {
 	objsCh := make(chan minio.SnowballObject)
 
 	g, gctx := errgroup.WithContext(ctx)

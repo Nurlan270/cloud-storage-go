@@ -15,7 +15,6 @@ import (
 	"github.com/Nurlan270/cloud-storage-go/internal/core/logger"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/minio"
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
-	"github.com/Nurlan270/cloud-storage-go/internal/core/util"
 )
 
 type ResourceService interface {
@@ -31,7 +30,6 @@ type ResourceRepository interface {
 	BatchCreate(ctx context.Context, resources []models.Resource) error
 	Get(ctx context.Context, resource models.Resource) (models.Resource, error)
 	Update(ctx context.Context, old models.Resource, new models.Resource) (models.Resource, error)
-	BatchUpdate(ctx context.Context, old models.Resource, new models.Resource) ([]models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]models.Resource, error)
 	Delete(ctx context.Context, resource models.Resource) error
 }
@@ -39,8 +37,8 @@ type ResourceRepository interface {
 type MinioClient interface {
 	Get(ctx context.Context, resource models.Resource) (minio.GetResult, error)
 	GetAll(ctx context.Context, resources []models.Resource) ([]minio.GetResult, error)
-	Put(ctx context.Context, opts minio.PutOptions) error
-	PutAll(ctx context.Context, entities []minio.PutAllEntities) error
+	Put(ctx context.Context, entity minio.PutEntity) error
+	PutAll(ctx context.Context, entities []minio.PutEntity) error
 	Update(ctx context.Context, old models.Resource, new models.Resource) error
 	UpdateAll(
 		ctx context.Context,
@@ -84,34 +82,33 @@ func (s *resourceService) Upload(
 ) ([]models.Resource, error) {
 	user := corectx.UserFromContext(ctx)
 
-	uploadEntities := make([]minio.PutAllEntities, 0, len(req.Object))
-	rawResourceList := make([]models.Resource, 0, len(req.Object))
+	resourceSet := make(map[models.Resource]struct{}, len(req.Objects))
+	resourceList := make([]models.Resource, 0, len(req.Objects)*2)
+	uploadEntities := make([]minio.PutEntity, 0, len(req.Objects))
 
-	for _, obj := range req.Object {
-		fullPath, err := getFullPath(obj, req.Path)
+	for _, obj := range req.Objects {
+		fullPath, err := getFullPath(obj.Header, req.Path)
 		if err != nil {
 			return nil, err
 		}
 
 		resources := buildResourcesFromPath(user.ID, fullPath, obj.Size)
 
-		rawResourceList = append(rawResourceList, resources...)
-
 		for _, resource := range resources {
-			if resource.IsDir() {
-				continue
+			//	Drop duplicate values
+			if _, exists := resourceSet[resource]; !exists {
+				resourceSet[resource] = struct{}{}
+				resourceList = append(resourceList, resource)
 			}
 
-			uploadEntities = append(uploadEntities, minio.PutAllEntities{
-				Resource: resource,
-				Object:   obj,
-			})
+			if !resource.IsDir() {
+				uploadEntities = append(uploadEntities, minio.PutEntity{
+					Resource: resource,
+					Object:   obj,
+				})
+			}
 		}
 	}
-
-	//	fixme: this needs optimization, it does unnecessary work
-	//	Drop all duplicate values from slice
-	resourceList := util.UniqueSlice[models.Resource](rawResourceList)
 
 	//	Begin TX
 	tx, txErr := s.pool.Begin(ctx)
@@ -182,9 +179,14 @@ func (s *resourceService) Search(
 
 func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource) error {
 	user := corectx.UserFromContext(ctx)
-
 	path, name := splitPath(req.Path)
 	resourceType := getResourceType(req.Path)
+	resource := models.Resource{
+		UserID: user.ID,
+		Path:   path,
+		Name:   name,
+		Type:   resourceType,
+	}
 
 	//	Start TX
 	tx, txErr := s.pool.Begin(ctx)
@@ -197,45 +199,41 @@ func (s *resourceService) Delete(ctx context.Context, req request.DeleteResource
 	//	Put TX into ctx
 	ctx = corectx.NewTxContext(ctx, tx)
 
-	resource := models.Resource{
-		UserID: user.ID,
-		Path:   path,
-		Name:   name,
-		Type:   resourceType,
-	}
-
-	var (
-		err       error
-		resources []models.Resource
-	)
-
 	if resource.IsDir() {
 		//	Get directory content
-		resources, err = s.dirRepo.GetAll(ctx, resource, true)
+		content, err := s.dirRepo.GetAll(ctx, resource, true)
 		if err != nil {
 			return err
 		}
-	}
 
-	//	todo: check this if condition, i guess there should be > 1
-	//	Delete from Bucket
-	if len(resources) > 0 {
-		if err = s.client.DeleteAll(ctx, resources); err != nil {
+		//	Delete from DB
+		if err = s.dirRepo.Delete(ctx, resource); err != nil {
 			return err
 		}
-	} else {
+
+		//	Delete dir content from bucket
+		if err = s.client.DeleteAll(ctx, content); err != nil {
+			return err
+		}
+
+		//	Delete dir from bucket
 		if err = s.client.Delete(ctx, resource); err != nil {
 			return err
 		}
-	}
+	} else {
+		//	Delete from DB
+		if err := s.resourceRepo.Delete(ctx, resource); err != nil {
+			return err
+		}
 
-	//	Delete from DB
-	if err = s.resourceRepo.Delete(ctx, resource); err != nil {
-		return err
+		//	Delete from bucket
+		if err := s.client.Delete(ctx, resource); err != nil {
+			return err
+		}
 	}
 
 	//	Commit TX
-	if err = tx.Commit(ctx); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		s.log.Error("tx: failed to commit", zap.Error(err))
 		return err
 	}
@@ -396,9 +394,14 @@ func (s *resourceService) Move(ctx context.Context, req request.MoveResource) (m
 	ctx = corectx.NewTxContext(ctx, tx)
 
 	if newResource.IsDir() {
-		//	Update all directory content in DB
-		content, err := s.resourceRepo.BatchUpdate(ctx, oldResource, newResource)
+		//	Get directory content
+		content, err := s.dirRepo.GetAll(ctx, oldResource, true)
 		if err != nil {
+			return models.Resource{}, err
+		}
+
+		//	Update all directory content in DB
+		if err = s.dirRepo.BatchUpdate(ctx, oldResource, newResource, content); err != nil {
 			return models.Resource{}, err
 		}
 

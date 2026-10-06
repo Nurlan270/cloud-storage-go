@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"mime"
-	"mime/multipart"
+	"net/textproto"
 	"strings"
 
 	"github.com/Nurlan270/cloud-storage-go/internal/core/models"
@@ -13,13 +13,13 @@ import (
 )
 
 // getFullPath returns full path of provided resource using its Content-Disposition header.
-func getFullPath(resource *multipart.FileHeader, rootDir string) (string, error) {
-	header := resource.Header.Get("Content-Disposition")
-	if header == "" {
+func getFullPath(header textproto.MIMEHeader, rootDir string) (string, error) {
+	head := header.Get("Content-Disposition")
+	if head == "" {
 		return "", errors.New("missing Content-Disposition")
 	}
 
-	_, params, err := mime.ParseMediaType(header)
+	_, params, err := mime.ParseMediaType(head)
 	if err != nil {
 		return "", fmt.Errorf("invalid Content-Disposition: %w", err)
 	}

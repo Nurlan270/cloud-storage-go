@@ -19,7 +19,6 @@ type ResourceRepository interface {
 	BatchCreate(ctx context.Context, resources []models.Resource) error
 	Get(ctx context.Context, resource models.Resource) (models.Resource, error)
 	Update(ctx context.Context, old models.Resource, new models.Resource) (models.Resource, error)
-	BatchUpdate(ctx context.Context, old models.Resource, new models.Resource) ([]models.Resource, error)
 	Search(ctx context.Context, userID uint64, query string) ([]models.Resource, error)
 	Delete(ctx context.Context, resource models.Resource) error
 }
@@ -143,54 +142,21 @@ func (r *resourceRepository) Search(
 }
 
 func (r *resourceRepository) Delete(ctx context.Context, resource models.Resource) error {
-	const (
-		qSingleDelete = `
-			DELETE FROM resources
-			WHERE user_id = $1 AND type = $2 AND path = $3 AND name = $4
-		`
-
-		qDeleteAll = `
-			DELETE FROM resources
-			WHERE user_id = $1 AND path LIKE $2
-		`
-	)
+	const q = `
+		DELETE FROM resources
+		WHERE user_id = $1 AND type = $2 AND path = $3 AND name = $4
+	`
 
 	tx := corectx.TxFromContext(ctx)
 
-	var deleted int64
+	tag, err := tx.Exec(ctx, q, resource.UserID, resource.Type, resource.Path, resource.Name)
+	if err != nil {
+		r.log.Error("failed to delete", zap.Error(err))
 
-	if resource.IsDir() {
-		//	Remove provided folder
-		tag, err := tx.Exec(ctx, qSingleDelete, resource.UserID, resource.Type, resource.Path, resource.Name)
-		if err != nil {
-			r.log.Error("failed to single delete", zap.Error(err))
-
-			return err
-		}
-
-		deleted += tag.RowsAffected()
-
-		//	Remove all resources that's within provided folder
-		tag, err = tx.Exec(ctx, qDeleteAll, resource.UserID, resource.FullPath()+"%")
-		if err != nil {
-			r.log.Error("failed to delete all", zap.Error(err))
-
-			return err
-		}
-
-		deleted += tag.RowsAffected()
-	} else {
-		tag, err := tx.Exec(ctx, qSingleDelete, resource.UserID, resource.Type, resource.Path, resource.Name)
-		if err != nil {
-			r.log.Error("failed to single delete", zap.Error(err))
-
-			return err
-		}
-
-		deleted += tag.RowsAffected()
+		return err
 	}
 
-	if deleted <= 0 {
+	if tag.RowsAffected() <= 0 {
 		return errs.ErrResourceNotFound
 	}
 
@@ -233,84 +199,4 @@ func (r *resourceRepository) Update(
 	}
 
 	return res, nil
-}
-
-func (r *resourceRepository) BatchUpdate(
-	ctx context.Context,
-	old models.Resource,
-	new models.Resource,
-) ([]models.Resource, error) {
-	const (
-		qSelectOldResourceContent = `
-			SELECT user_id, path, name, size, type 
-			FROM resources
-			WHERE user_id = $1 AND path = $2
-		`
-
-		qUpdateOldResourceContent = `
-			UPDATE resources
-			SET path = $1
-			WHERE user_id = $2 AND type = $3 AND path = $4 AND name = $5
-			RETURNING user_id, path, name, size, type
-		`
-
-		qUpdateOldResource = `
-			UPDATE resources
-			SET name = $1, path = $2
-			WHERE user_id = $3 AND type = $4 AND path = $5 AND name = $6
-		`
-	)
-
-	tx := corectx.TxFromContext(ctx)
-
-	rows, err := tx.Query(ctx, qSelectOldResourceContent, old.UserID, old.FullPath())
-	if err != nil {
-		r.log.Error("failed to select rows", zap.Error(err))
-		return nil, err
-	}
-
-	//	Get old resource's content
-	content := make([]models.Resource, 0, rows.CommandTag().RowsAffected())
-	for rows.Next() {
-		res := models.Resource{}
-		if err = rows.Scan(&res.UserID, &res.Path, &res.Name, &res.Size, &res.Type); err != nil {
-			r.log.Error("failed to scan", zap.Error(err))
-			return nil, err
-		}
-
-		content = append(content, res)
-	}
-
-	batch := &pgx.Batch{}
-
-	//	Update old resource with new one
-	batch.Queue(qUpdateOldResource,
-		new.Name, new.Path,
-		old.UserID, old.Type, old.Path, old.Name,
-	)
-
-	//	Update old resource's content with new one
-	for _, oldContent := range content {
-		batch.Queue(qUpdateOldResourceContent,
-			new.FullPath(), // new content's path
-			oldContent.UserID, oldContent.Type, oldContent.Path, oldContent.Name,
-		)
-	}
-
-	br := tx.SendBatch(ctx, batch)
-	defer br.Close()
-
-	for range content {
-		if _, err = br.Exec(); err != nil {
-			if errIs(err, pgerrcode.UniqueViolation) {
-				return nil, errs.ErrResourceAlreadyExists
-			}
-
-			r.log.Error("failed to batch update", zap.Error(err))
-
-			return nil, err
-		}
-	}
-
-	return content, nil
 }

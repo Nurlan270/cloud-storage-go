@@ -56,8 +56,8 @@ func (h *resourceHandler) UploadResource(w http.ResponseWriter, r *http.Request)
 
 	//	Get data
 	req := request.UploadResource{
-		Object: r.MultipartForm.File["object"],
-		Path:   r.URL.Query().Get("path"),
+		Objects: r.MultipartForm.File["object"],
+		Path:    r.URL.Query().Get("path"),
 	}
 
 	//	Validate
