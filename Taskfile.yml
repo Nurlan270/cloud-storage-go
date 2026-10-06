@@ -116,7 +116,7 @@ tasks:
     deps: [ tmp:init ]
     silent: true
     cmds:
-      - "[ -f .env ] || mv .env.example .env"
+      - go run ./scripts/setup.go --env local
       - docker compose up -d --build
       - task: goose:up
 
@@ -151,8 +151,7 @@ tasks:
     deps: [ tmp:init ]
     silent: true
     cmds:
-      - "[ -f .env ] || (mv .env.example .env && sed -i 's/^APP_ENV=local$/APP_ENV=prod/' .env)"
-      - "[ -f config/prod.yml ] || mv config/local.yml config/prod.yml"
+      - go run ./scripts/setup.go --env prod
       - docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
       - task: goose:up
 
