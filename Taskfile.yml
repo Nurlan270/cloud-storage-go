@@ -63,7 +63,7 @@ tasks:
       - '{{.GOOSE}} create {{.name}} sql'
 
   goose:up:
-    desc: Invoke up on all migrations
+    desc: Run all migrations
     deps: [ goose:install ]
     silent: true
     cmds:
